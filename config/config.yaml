@@ -1,0 +1,145 @@
+# ============================================================
+# config.yaml — Central configuration for all project modules
+# ============================================================
+# On Google Colab, mount Drive first:
+#   from google.colab import drive
+#   drive.mount('/content/drive')
+# Then set base_dir to your Drive path.
+
+# ── Paths ────────────────────────────────────────────────────
+paths:
+  # Google Drive root (change to match your Drive structure)
+  base_dir: "/content/drive/MyDrive/HealthCare_Analytics"
+
+  # Raw MIMIC data (downloaded from PhysioNet)
+  mimic_iv_dir:     "/content/drive/MyDrive/MIMIC/mimic-iv-2.2"
+  mimic_ecg_dir:    "/content/drive/MyDrive/MIMIC/mimic-iv-ecg-1.0"
+  mimic_cxr_dir:    "/content/drive/MyDrive/MIMIC/mimic-cxr-jpg-2.0.0"
+
+  # Intermediate & processed outputs
+  cohort_dir:       "/content/drive/MyDrive/HealthCare_Analytics/data/cohort"
+  processed_dir:    "/content/drive/MyDrive/HealthCare_Analytics/data/processed"
+  models_dir:       "/content/drive/MyDrive/HealthCare_Analytics/outputs/models"
+  results_dir:      "/content/drive/MyDrive/HealthCare_Analytics/outputs/results"
+  figures_dir:      "/content/drive/MyDrive/HealthCare_Analytics/outputs/figures"
+  logs_dir:         "/content/drive/MyDrive/HealthCare_Analytics/outputs/logs"
+
+# ── Cohort ────────────────────────────────────────────────────
+cohort:
+  readmission_days: 30          # 30-day window
+  ecg_window_hours: 72          # ECG must be within 72h of discharge
+  cxr_window_hours: 72          # CXR must be within 72h of discharge
+  # ICD-10 HF prefix
+  icd10_hf_prefix: "I50"
+  # ICD-9 HF codes
+  icd9_hf_codes:
+    - "4280"
+    - "4281"
+    - "42820"
+    - "42821"
+    - "42822"
+    - "42823"
+    - "42830"
+    - "42831"
+    - "42832"
+    - "42833"
+    - "42840"
+    - "42841"
+    - "42842"
+    - "42843"
+    - "4289"
+  train_frac: 0.70
+  val_frac:   0.10
+  test_frac:  0.20
+  random_seed: 42
+
+# ── Tabular ───────────────────────────────────────────────────
+tabular:
+  lab_itemids:
+    creatinine:   [50912]
+    sodium:       [50983]
+    hemoglobin:   [51222]
+    bnp:          [51002]
+    nt_probnp:    [50963]
+    potassium:    [50971]
+    bicarbonate:  [50882]
+    glucose:      [50931]
+    bun:          [51006]
+    wbc:          [51301]
+    hematocrit:   [51221]
+    albumin:      [50862]
+    egfr:         [50920]
+  vital_itemids:
+    heart_rate:       [220045]
+    sbp:              [220179, 220050]
+    dbp:              [220180, 220051]
+    spo2:             [220277]
+    resp_rate:        [220210]
+    temperature:      [223762, 223761]
+  xgb:
+    n_estimators:       1000
+    max_depth:          6
+    learning_rate:      0.05
+    subsample:          0.8
+    colsample_bytree:   0.8
+    eval_metric:        "aucpr"
+    early_stopping:     50
+    n_bootstrap:        20       # bootstrap ensemble size
+    random_seed:        42
+
+# ── ECG ───────────────────────────────────────────────────────
+ecg:
+  sample_rate:    500        # Hz
+  duration_sec:   10         # seconds
+  n_leads:        12
+  target_len:     5000       # sample_rate × duration_sec
+  batch_size:     64
+  epochs:         50
+  lr:             1.0e-3
+  weight_decay:   1.0e-4
+  dropout:        0.5
+  embed_dim:      256
+  mc_passes:      50
+  random_seed:    42
+
+# ── CXR ───────────────────────────────────────────────────────
+cxr:
+  image_size:     224
+  backbone:       "densenet121"
+  pretrained:     true
+  freeze_backbone: true
+  embed_dim:      256
+  batch_size:     32
+  epochs:         30
+  lr:             1.0e-4
+  weight_decay:   1.0e-5
+  dropout:        0.3
+  mc_passes:      50
+  random_seed:    42
+
+# ── Fusion ────────────────────────────────────────────────────
+fusion:
+  d_fuse:         256
+  dropout:        0.4
+  gate_hidden:    64
+  modality_drop_p: 0.3       # probability of dropping ECG or CXR per sample
+  batch_size:     64
+  epochs:         40
+  lr:             5.0e-4
+  weight_decay:   1.0e-4
+  random_seed:    42
+
+# ── Evaluation ────────────────────────────────────────────────
+evaluation:
+  ece_n_bins:     10
+  dca_thresh_min: 0.0
+  dca_thresh_max: 0.5
+  dca_thresh_step: 0.01
+  fairness_groups:
+    - "gender"
+    - "age_group"    # <65, 65-79, >=80
+
+# ── MLflow ────────────────────────────────────────────────────
+mlflow:
+  experiment_name: "hf_readmission_multimodal"
+  tracking_uri:    "/content/drive/MyDrive/HealthCare_Analytics/outputs/mlflow"
