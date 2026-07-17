@@ -249,24 +249,39 @@ def build_feature_matrix(
     mimic_hosp = Path(cfg.paths.mimic_iv_dir) / "hosp"
     mimic_icu  = Path(cfg.paths.mimic_iv_dir) / "icu"
 
+    cohort_hadm_ids = set(cohort["hadm_id"].unique())
+
     # Load tables if not supplied (allows passing pre-loaded for efficiency)
     if labevents is None:
-        log.info("Loading labevents …")
+        log.info("Loading and filtering labevents in chunks …")
         lab_path = mimic_hosp / "labevents.csv.gz"
         if not lab_path.exists():
             lab_path = mimic_hosp / "labevents.csv"
-        labevents = pd.read_csv(lab_path, low_memory=False)
+        
+        chunks = []
+        for chunk in pd.read_csv(lab_path, chunksize=1000000, low_memory=False):
+            # Keep only the rows for our cohort
+            filtered_chunk = chunk[chunk["hadm_id"].isin(cohort_hadm_ids)]
+            chunks.append(filtered_chunk)
+        labevents = pd.concat(chunks, ignore_index=True)
+        log.info("  Loaded %d labevents records", len(labevents))
 
     if chartevents is None:
-        log.info("Loading chartevents …")
+        log.info("Loading and filtering chartevents in chunks …")
         ce_path = mimic_icu / "chartevents.csv.gz"
         if not ce_path.exists():
             ce_path = mimic_icu / "chartevents.csv"
+        
+        chunks = []
         # chartevents is very large — read only necessary columns
-        chartevents = pd.read_csv(
+        for chunk in pd.read_csv(
             ce_path, usecols=["hadm_id", "itemid", "charttime", "valuenum"],
-            low_memory=False,
-        )
+            chunksize=1000000, low_memory=False
+        ):
+            filtered_chunk = chunk[chunk["hadm_id"].isin(cohort_hadm_ids)]
+            chunks.append(filtered_chunk)
+        chartevents = pd.concat(chunks, ignore_index=True)
+        log.info("  Loaded %d chartevents records", len(chartevents))
 
     lab_itemids   = {k: list(v) for k, v in cfg.tabular.lab_itemids.items()}
     vital_itemids = {k: list(v) for k, v in cfg.tabular.vital_itemids.items()}
