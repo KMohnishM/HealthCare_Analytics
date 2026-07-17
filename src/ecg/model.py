@@ -147,6 +147,7 @@ def mc_predict_ecg(
     waveform: torch.Tensor,
     n_passes: int = 50,
     device: str | None = None,
+    global_max_std: float = 0.5,
 ) -> Dict[str, np.ndarray]:
     """
     MC-Dropout inference for uncertainty estimation.
@@ -160,14 +161,16 @@ def mc_predict_ecg(
     n_passes : int
         Number of stochastic forward passes.
     device : str, optional
-        Target device. Auto-detects CUDA/CPU if None.
+        Auto-detects CUDA/CPU if None.
+    global_max_std : float
+        Static scaling factor for normalization. Defaults to 0.5 (theoretical limit).
 
     Returns
     -------
     dict with keys:
         - ``prob``       : mean predicted probability (B,)
         - ``std``        : std across passes (B,)
-        - ``confidence`` : 1 − normalized_std (B,)
+        - ``confidence`` : 1 − (std / global_max_std) clamped to [0,1] (B,)
         - ``embed``      : mean embedding (B, embed_dim) from last pass
     """
     if device is None:
@@ -195,8 +198,7 @@ def mc_predict_ecg(
     std_prob   = probs.std(axis=0)
     mean_embed = embeds.mean(axis=0)
 
-    max_std    = max(std_prob.max(), 1e-8)
-    confidence = 1.0 - (std_prob / max_std)
+    confidence = np.clip(1.0 - (std_prob / global_max_std), 0.0, 1.0)
 
     return {
         "prob":       mean_prob,

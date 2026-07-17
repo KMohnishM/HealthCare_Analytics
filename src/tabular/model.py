@@ -134,8 +134,13 @@ class TabularEnsemble:
             )
             self.models.append(m)
 
-            if (i + 1) % 5 == 0:
-                log.info("  Bootstrap %d/%d done", i + 1, n_bootstrap)
+        # Compute and save a static global_max_std on the validation set for inference normalization
+        val_preds = np.stack(
+            [m.predict_proba(Xv_arr)[:, 1] for m in self.models],
+            axis=1
+        )
+        self.global_max_std = max(float(val_preds.std(axis=1).max()), 1e-4)
+        log.info("  Static global_max_std computed on validation set: %.6f", self.global_max_std)
 
         log.info("Ensemble training complete.")
         return self
@@ -168,9 +173,9 @@ class TabularEnsemble:
         mean_pred = preds.mean(axis=1)
         std_pred  = preds.std(axis=1)
 
-        # Normalize std to [0, 0.5] range then invert to get confidence
-        max_std = max(std_pred.max(), 1e-8)
-        confidence = 1.0 - (std_pred / max_std)
+        # Normalize std using static global_max_std to support N=1 clinical deployment
+        global_max_std = getattr(self, "global_max_std", 0.5)
+        confidence = np.clip(1.0 - (std_pred / global_max_std), 0.0, 1.0)
 
         return {
             "score":      mean_pred,
