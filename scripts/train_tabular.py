@@ -184,7 +184,9 @@ def main() -> None:
             "label": data["label"],
         })
         embed_path = results_dir / f"tabular_embed_{split_name}.npy"
-        np.save(embed_path, data["embed"].astype("float32"))
+        # Neural networks cannot process NaNs natively, so we impute with 0.0 for fusion input
+        embed_imputed = np.nan_to_num(data["embed"], nan=0.0)
+        np.save(embed_path, embed_imputed.astype("float32"))
         out.to_csv(results_dir / f"tabular_preds_{split_name}.csv", index=False)
         log.info("Saved %s predictions (OOF for train) → %s", split_name, results_dir)
 
