@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pandas as pd
 from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import KFold
 
 from src.tabular.features import build_feature_matrix
 from src.tabular.impute import fit_imputer, apply_imputer, save_imputer, missingness_report
@@ -79,26 +80,43 @@ def main() -> None:
     X_val,   y_val,   _        = build_feature_matrix(val_df,   cfg, labevents, chartevents)
     X_test,  y_test,  _        = build_feature_matrix(test_df,  cfg, labevents, chartevents)
 
-    # ── Imputation ────────────────────────────────────────────────────────────
-    log.info("Fitting imputer on training data …")
+    # ── Log Missingness (XGBoost handles NaN natively) ─────────────────────────
     miss_report = missingness_report(X_train)
     log.info("Top 5 missing features:\n%s", miss_report.head(5).to_string(index=False))
 
-    imputer  = fit_imputer(X_train)
-    X_train  = apply_imputer(imputer, X_train)
-    X_val    = apply_imputer(imputer, X_val)
-    X_test   = apply_imputer(imputer, X_test)
+    # ── Out-Of-Fold (OOF) Generation for Stacking (Fusion) ───────────────────
+    log.info("Generating Out-Of-Fold predictions via 5-fold CV to prevent Stacking Leakage …")
+    kf = KFold(n_splits=5, shuffle=True, random_state=cfg.cohort.random_seed)
+    
+    oof_scores = np.zeros(len(X_train))
+    oof_confs = np.zeros(len(X_train))
+    oof_stds = np.zeros(len(X_train))
+    # Tabular "embeddings" are the raw features. OOF embeddings are just the features.
+    oof_embeds = X_train.values.copy() 
 
-    # Save imputer
-    imp_path = Path(cfg.paths.models_dir) / "tabular_imputer.pkl"
-    save_imputer(imputer, imp_path)
+    # We copy the config overrides to avoid modifying the global config
+    for fold, (train_idx, val_idx) in enumerate(kf.split(X_train)):
+        log.info(f"--- Fold {fold + 1}/5 ---")
+        X_tr_fold, y_tr_fold = X_train.iloc[train_idx], y_train.iloc[train_idx]
+        X_va_fold, y_va_fold = X_train.iloc[val_idx], y_train.iloc[val_idx]
+        
+        fold_model = TabularEnsemble(cfg)
+        fold_model.fit(X_tr_fold, y_tr_fold, X_va_fold, y_va_fold)
+        
+        fold_pred = fold_model.predict(X_va_fold)
+        oof_scores[val_idx] = fold_pred["score"]
+        oof_confs[val_idx] = fold_pred["confidence"]
+        oof_stds[val_idx] = fold_pred["std"]
 
-    # ── Train ensemble ────────────────────────────────────────────────────────
+    log.info("OOF prediction generation complete.")
+
+    # ── Train final ensemble on full training set ────────────────────────────
+    log.info("Training final tabular ensemble on full training set …")
     model = TabularEnsemble(cfg)
     model.fit(X_train, y_train, X_val, y_val)
 
     # ── Evaluate ──────────────────────────────────────────────────────────────
-    log.info("Evaluating on test set …")
+    log.info("Evaluating final model on test set …")
     test_result = model.predict(X_test)
     metrics = evaluate_all(y_test.values, test_result["score"])
 
@@ -125,28 +143,49 @@ def main() -> None:
     results_dir = Path(cfg.paths.processed_dir)
     results_dir.mkdir(parents=True, exist_ok=True)
 
-    for split_name, X_sp, y_sp, cohort_sp in [
-        ("train", X_train, y_train, train_df),
-        ("val",   X_val,   y_val,   val_df),
-        ("test",  X_test,  y_test,  test_df),
-    ]:
-        result = model.predict(X_sp)
-        out = pd.DataFrame({
-            "hadm_id":       X_sp.index,
-            "score":         result["score"],
-            "confidence":    result["confidence"],
-            "std":           result["std"],
-            "label":         y_sp.values,
-        })
-        # Also save feature matrix as embedding proxy for the fusion layer
-        embed_path = results_dir / f"tabular_embed_{split_name}.npy"
-        # Use the raw feature matrix as the "embedding" for tabular branch
-        # The fusion layer will project this via its proj_tab layer
-        import numpy as np
-        np.save(embed_path, X_sp.values.astype("float32"))
+    # Generate predictions on val/test using the final trained model
+    val_pred = model.predict(X_val)
+    test_pred = model.predict(X_test)
 
+    splits_data = {
+        "train": {
+            "hadm_id": X_train.index,
+            "score": oof_scores,
+            "confidence": oof_confs,
+            "std": oof_stds,
+            "label": y_train.values,
+            "embed": oof_embeds
+        },
+        "val": {
+            "hadm_id": X_val.index,
+            "score": val_pred["score"],
+            "confidence": val_pred["confidence"],
+            "std": val_pred["std"],
+            "label": y_val.values,
+            "embed": X_val.values
+        },
+        "test": {
+            "hadm_id": X_test.index,
+            "score": test_pred["score"],
+            "confidence": test_pred["confidence"],
+            "std": test_pred["std"],
+            "label": y_test.values,
+            "embed": X_test.values
+        }
+    }
+
+    for split_name, data in splits_data.items():
+        out = pd.DataFrame({
+            "hadm_id": data["hadm_id"],
+            "score": data["score"],
+            "confidence": data["confidence"],
+            "std": data["std"],
+            "label": data["label"],
+        })
+        embed_path = results_dir / f"tabular_embed_{split_name}.npy"
+        np.save(embed_path, data["embed"].astype("float32"))
         out.to_csv(results_dir / f"tabular_preds_{split_name}.csv", index=False)
-        log.info("Saved %s predictions → %s", split_name, results_dir)
+        log.info("Saved %s predictions (OOF for train) → %s", split_name, results_dir)
 
     # Feature importance
     importance_df = model.get_feature_importance()

@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
 import pandas as pd
+from sklearn.model_selection import KFold
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -130,12 +131,59 @@ def main() -> None:
     train_ds = ECGDataset(ecg_index, train_df, cfg)
     val_ds   = ECGDataset(ecg_index, val_df,   cfg)
     test_ds  = ECGDataset(ecg_index, test_df,  cfg)
+    # ── Out-Of-Fold (OOF) Generation for Stacking (Fusion) ───────────────────
+    log.info("Generating Out-Of-Fold ECG predictions via 5-fold CV to prevent Stacking Leakage …")
+    kf = KFold(n_splits=5, shuffle=True, random_state=cfg.ecg.random_seed)
+    
+    oof_probs  = np.zeros(len(train_df), dtype=np.float32)
+    oof_confs  = np.zeros(len(train_df), dtype=np.float32)
+    oof_embeds = np.zeros((len(train_df), cfg.ecg.embed_dim), dtype=np.float32)
+    oof_avails = np.zeros(len(train_df), dtype=np.float32)
 
-    train_loader = make_ecg_loader(train_ds, batch_size=cfg.ecg.batch_size, shuffle=True)
-    val_loader   = make_ecg_loader(val_ds,   batch_size=cfg.ecg.batch_size)
-    test_loader  = make_ecg_loader(test_ds,  batch_size=cfg.ecg.batch_size)
+    # Convert train_df to reset index for indexing convenience in folds
+    train_df_reset = train_df.reset_index(drop=True)
 
-    # ── Model ─────────────────────────────────────────────────────────────────
+    for fold, (train_idx, val_idx) in enumerate(kf.split(train_df_reset)):
+        log.info(f"--- Fold {fold + 1}/5 ---")
+        train_sub = train_df_reset.iloc[train_idx]
+        val_sub   = train_df_reset.iloc[val_idx]
+        
+        fold_train_ds = ECGDataset(ecg_index, train_sub, cfg)
+        fold_val_ds   = ECGDataset(ecg_index, val_sub,   cfg)
+        
+        fold_train_loader = make_ecg_loader(fold_train_ds, batch_size=cfg.ecg.batch_size, shuffle=True)
+        fold_val_loader   = make_ecg_loader(fold_val_ds,   batch_size=cfg.ecg.batch_size)
+        
+        fold_model = ECGResNet(cfg).to(device)
+        fold_optimizer = optim.AdamW(fold_model.parameters(), lr=cfg.ecg.lr, weight_decay=cfg.ecg.weight_decay)
+        fold_criterion = nn.BCEWithLogitsLoss()
+        
+        # Fast training (5 epochs) for CV fold to gather OOF embeddings quickly
+        for epoch in range(1, 6):
+            _ = train_one_epoch(fold_model, fold_train_loader, fold_optimizer, fold_criterion, device)
+            
+        # Collect OOF predictions
+        fold_model.eval()
+        for batch in fold_val_loader:
+            wav   = batch["waveform"]
+            avail = batch["available"].numpy()
+            hadm_ids = batch["hadm_id"].numpy()
+            
+            result = mc_predict_ecg(fold_model, wav, n_passes=10, device=device) # fewer passes for speed in CV
+            
+            # Map back to train_df_reset indices
+            for idx_in_batch, h_id in enumerate(hadm_ids):
+                # find index in train_df_reset
+                orig_idx = train_df_reset[train_df_reset["hadm_id"] == h_id].index[0]
+                oof_probs[orig_idx]  = result["prob"][idx_in_batch]
+                oof_confs[orig_idx]  = result["confidence"][idx_in_batch]
+                oof_embeds[orig_idx] = result["embed"][idx_in_batch]
+                oof_avails[orig_idx] = avail[idx_in_batch]
+
+    log.info("ECG OOF prediction generation complete.")
+
+    # ── Train final model on full training set ───────────────────────────────
+    log.info("Training final ECGResNet model on full training set …")
     model = ECGResNet(cfg).to(device)
     log.info(
         "ECGResNet params: %d",
@@ -150,7 +198,6 @@ def main() -> None:
     optimizer  = optim.AdamW(model.parameters(), lr=cfg.ecg.lr, weight_decay=cfg.ecg.weight_decay)
     scheduler  = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=cfg.ecg.epochs)
 
-    # ── Training loop ─────────────────────────────────────────────────────────
     best_val_auc = 0.0
     best_state   = None
 
@@ -181,8 +228,20 @@ def main() -> None:
     proc_dir = Path(cfg.paths.processed_dir)
     proc_dir.mkdir(parents=True, exist_ok=True)
 
+    # Save OOF train split outputs
+    train_out_df = pd.DataFrame({
+        "hadm_id":    train_df_reset["hadm_id"].values,
+        "score":      oof_probs,
+        "confidence": oof_confs,
+        "available":  oof_avails,
+        "label":      train_df_reset["readmitted_30d"].values,
+    })
+    train_out_df.to_csv(proc_dir / "ecg_preds_train.csv", index=False)
+    np.save(proc_dir / "ecg_embed_train.npy", oof_embeds.astype("float32"))
+    log.info("Saved train ECG OOF outputs → %s", proc_dir)
+
+    # Save val & test outputs using the final trained model
     for split_name, loader, split_df in [
-        ("train", train_loader, train_df),
         ("val",   val_loader,   val_df),
         ("test",  test_loader,  test_df),
     ]:

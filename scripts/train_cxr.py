@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
 import pandas as pd
+from sklearn.model_selection import KFold
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -133,7 +134,61 @@ def main() -> None:
     val_loader   = make_cxr_loader(val_ds,   batch_size=cfg.cxr.batch_size, shuffle=False, num_workers=0)
     test_loader  = make_cxr_loader(test_ds,  batch_size=cfg.cxr.batch_size, shuffle=False, num_workers=0)
 
-    # ── Model ─────────────────────────────────────────────────────────────────
+    # ── Out-Of-Fold (OOF) Generation for Stacking (Fusion) ───────────────────
+    log.info("Generating Out-Of-Fold CXR predictions via 5-fold CV to prevent Stacking Leakage …")
+    kf = KFold(n_splits=5, shuffle=True, random_state=cfg.cxr.random_seed)
+    
+    oof_probs  = np.zeros(len(train_df), dtype=np.float32)
+    oof_confs  = np.zeros(len(train_df), dtype=np.float32)
+    oof_embeds = np.zeros((len(train_df), cfg.cxr.embed_dim), dtype=np.float32)
+    oof_avails = np.zeros(len(train_df), dtype=np.float32)
+
+    # Convert train_df to reset index for indexing convenience in folds
+    train_df_reset = train_df.reset_index(drop=True)
+
+    for fold, (train_idx, val_idx) in enumerate(kf.split(train_df_reset)):
+        log.info(f"--- Fold {fold + 1}/5 ---")
+        train_sub = train_df_reset.iloc[train_idx]
+        val_sub   = train_df_reset.iloc[val_idx]
+        
+        fold_train_ds = CXRDataset(cxr_index, train_sub, cfg, is_train=True)
+        fold_val_ds   = CXRDataset(cxr_index, val_sub,   cfg, is_train=False)
+        
+        fold_train_loader = make_cxr_loader(fold_train_ds, batch_size=cfg.cxr.batch_size, shuffle=True, num_workers=0)
+        fold_val_loader   = make_cxr_loader(fold_val_ds,   batch_size=cfg.cxr.batch_size, shuffle=False, num_workers=0)
+        
+        fold_model = CXREncoder(cfg).to(device)
+        fold_optimizer = optim.AdamW(
+            filter(lambda p: p.requires_grad, fold_model.parameters()),
+            lr=cfg.cxr.lr, weight_decay=cfg.cxr.weight_decay,
+        )
+        fold_criterion = nn.BCEWithLogitsLoss()
+        
+        # Fast training (5 epochs) for CV fold to gather OOF embeddings quickly
+        for epoch in range(1, 6):
+            _ = train_one_epoch(fold_model, fold_train_loader, fold_optimizer, fold_criterion, device)
+            
+        # Collect OOF predictions
+        fold_model.eval()
+        for batch in fold_val_loader:
+            img   = batch["image"]
+            avail = batch["available"].numpy()
+            hadm_ids = batch["hadm_id"].numpy()
+            
+            result = mc_predict_cxr(fold_model, img, n_passes=10, device=device) # fewer passes for speed in CV
+            
+            # Map back to train_df_reset indices
+            for idx_in_batch, h_id in enumerate(hadm_ids):
+                orig_idx = train_df_reset[train_df_reset["hadm_id"] == h_id].index[0]
+                oof_probs[orig_idx]  = result["prob"][idx_in_batch]
+                oof_confs[orig_idx]  = result["confidence"][idx_in_batch]
+                oof_embeds[orig_idx] = result["embed"][idx_in_batch]
+                oof_avails[orig_idx] = avail[idx_in_batch]
+
+    log.info("CXR OOF prediction generation complete.")
+
+    # ── Train final model on full training set ───────────────────────────────
+    log.info("Training final CXREncoder model on full training set …")
     model = CXREncoder(cfg).to(device)
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     log.info("CXREncoder trainable params: %d", trainable)
@@ -143,14 +198,12 @@ def main() -> None:
     pos_weight = torch.tensor([n_neg / max(n_pos, 1)], dtype=torch.float32).to(device)
     criterion  = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
 
-    # Train only head initially (backbone frozen)
     optimizer  = optim.AdamW(
         filter(lambda p: p.requires_grad, model.parameters()),
         lr=cfg.cxr.lr, weight_decay=cfg.cxr.weight_decay,
     )
     scheduler  = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=cfg.cxr.epochs)
 
-    # ── Training loop ─────────────────────────────────────────────────────────
     best_val_auc = 0.0
     best_state   = None
 
@@ -181,8 +234,20 @@ def main() -> None:
     proc_dir = Path(cfg.paths.processed_dir)
     proc_dir.mkdir(parents=True, exist_ok=True)
 
+    # Save OOF train split outputs
+    train_out_df = pd.DataFrame({
+        "hadm_id":    train_df_reset["hadm_id"].values,
+        "score":      oof_probs,
+        "confidence": oof_confs,
+        "available":  oof_avails,
+        "label":      train_df_reset["readmitted_30d"].values,
+    })
+    train_out_df.to_csv(proc_dir / "cxr_preds_train.csv", index=False)
+    np.save(proc_dir / "cxr_embed_train.npy", oof_embeds.astype("float32"))
+    log.info("Saved train CXR OOF outputs → %s", proc_dir)
+
+    # Save val & test outputs using the final trained model
     for split_name, loader, split_df in [
-        ("train", train_loader, train_df),
         ("val",   val_loader,   val_df),
         ("test",  test_loader,  test_df),
     ]:
