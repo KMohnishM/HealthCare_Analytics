@@ -73,7 +73,7 @@ def main() -> None:
     proc_dir = Path(cfg.paths.processed_dir)
 
     # ── Load branch outputs ───────────────────────────────────────────────────
-    log.info("Loading branch outputs …")
+    log.info("Loading branch outputs ...")
     train_out = load_branch_outputs(proc_dir, "train")
     val_out   = load_branch_outputs(proc_dir, "val")
     test_out  = load_branch_outputs(proc_dir, "test")
@@ -122,7 +122,7 @@ def main() -> None:
     test_loader  = DataLoader(test_ds,  batch_size=cfg.fusion.batch_size)
 
     # ── Train learned gate ───────────────────────────────────────────────────
-    log.info("Training learned gating fusion model …")
+    log.info("Training learned gating fusion model ...")
     gate_model = GatedFusionModel(cfg, tab_dim=tab_dim)
     save_path  = str(Path(cfg.paths.models_dir) / "fusion_gate.pt")
 
@@ -178,9 +178,9 @@ def main() -> None:
     out_path = Path(cfg.paths.results_dir) / "fusion_test_preds.csv"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_df.to_csv(out_path, index=False)
-    log.info("Fusion predictions saved → %s", out_path)
+    log.info("Fusion predictions saved -> %s", out_path)
 
-    log.info("Fusion training complete ✓")
+    log.info("Fusion training complete [OK]")
 
 
 if __name__ == "__main__":

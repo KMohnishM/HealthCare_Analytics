@@ -131,6 +131,6 @@ def split_cohort(
     train_df.to_parquet(out_dir / "train.parquet", index=False)
     val_df.to_parquet(out_dir / "val.parquet",     index=False)
     test_df.to_parquet(out_dir / "test.parquet",   index=False)
-    log.info("Saved train/val/test splits → %s", out_dir)
+    log.info("Saved train/val/test splits -> %s", out_dir)
 
     return train_df, val_df, test_df

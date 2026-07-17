@@ -52,7 +52,7 @@ def main() -> None:
     y_test       = fusion_preds["label"].values
 
     # ── Load branch embeddings for missingness sweep ──────────────────────────
-    log.info("Loading branch outputs for missingness sweep …")
+    log.info("Loading branch outputs for missingness sweep ...")
     branch_outputs = {}
     for mod in ["tabular", "ecg", "cxr"]:
         preds = pd.read_csv(proc_dir / f"{mod}_preds_test.csv")

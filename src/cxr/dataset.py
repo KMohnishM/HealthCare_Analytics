@@ -35,7 +35,7 @@ class CXRDataset(Dataset):
     Parameters
     ----------
     cxr_index : pd.DataFrame
-        Output of ``build_cxr_index`` — maps hadm_id → cxr_path.
+        Output of ``build_cxr_index`` — maps hadm_id -> cxr_path.
     cohort : pd.DataFrame
         Cohort split with ``hadm_id`` and ``readmitted_30d``.
     cfg : DictConfig

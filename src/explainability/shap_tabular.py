@@ -80,7 +80,7 @@ def explain_tabular(
     base_model = ensemble.models[0]
     explainer = shap.TreeExplainer(base_model)
 
-    log.info("Computing SHAP values for %d test samples …", len(X_test))
+    log.info("Computing SHAP values for %d test samples ...", len(X_test))
     shap_explanation = explainer(X_test)  # shap.Explanation object
     shap_values      = shap_explanation.values       # (N, F)
     base_value       = explainer.expected_value
@@ -97,7 +97,7 @@ def explain_tabular(
     plt.tight_layout()
     if save_dir:
         fig1.savefig(save_path / "shap_beeswarm.png", dpi=150, bbox_inches="tight")
-        log.info("Saved beeswarm → %s", save_path / "shap_beeswarm.png")
+        log.info("Saved beeswarm -> %s", save_path / "shap_beeswarm.png")
     plt.show()
     plt.close()
 
@@ -130,7 +130,7 @@ def explain_tabular(
             if save_dir:
                 fname = save_path / f"shap_waterfall_{hadm_id}.png"
                 fig3.savefig(fname, dpi=150, bbox_inches="tight")
-                log.info("Saved waterfall → %s", fname)
+                log.info("Saved waterfall -> %s", fname)
             plt.show()
             plt.close()
 
@@ -142,7 +142,7 @@ def explain_tabular(
             columns=X_test.columns,
         )
         shap_df.to_csv(save_path / "shap_values.csv")
-        log.info("SHAP values CSV saved → %s", save_path / "shap_values.csv")
+        log.info("SHAP values CSV saved -> %s", save_path / "shap_values.csv")
 
     # ── Summary table ────────────────────────────────────────────────────────
     mean_abs_shap = np.abs(shap_values).mean(axis=0)

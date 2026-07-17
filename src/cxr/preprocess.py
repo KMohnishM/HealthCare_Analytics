@@ -78,8 +78,8 @@ def build_cxr_index(
     For each admission, find the frontal CXR closest to discharge within window.
 
     MIMIC-CXR-JPG metadata files used:
-    - ``mimic-cxr-2.0.0-metadata.csv.gz``  → study_id, dicom_id, ViewPosition, StudyDate, StudyTime
-    - ``mimic-cxr-2.0.0-split.csv.gz``     → (ignored, we use our own split)
+    - ``mimic-cxr-2.0.0-metadata.csv.gz``  -> study_id, dicom_id, ViewPosition, StudyDate, StudyTime
+    - ``mimic-cxr-2.0.0-split.csv.gz``     -> (ignored, we use our own split)
 
     Image path pattern:
     ``<mimic_cxr_dir>/files/p<subject_prefix>/p<subject_id>/s<study_id>/<dicom_id>.jpg``
@@ -108,7 +108,7 @@ def build_cxr_index(
             "Expected 'mimic-cxr-2.0.0-metadata.csv.gz'."
         )
 
-    log.info("Loading CXR metadata from %s …", meta_path.name)
+    log.info("Loading CXR metadata from %s ...", meta_path.name)
     meta = pd.read_csv(meta_path, low_memory=False)
 
     # Keep only frontal views (PA or AP)

@@ -5,8 +5,8 @@ Learned gating fusion with modality-dropout training.
 
 Architecture:
     Input = per-modality (embedding, confidence, availability_flag) triplets
-    Gate MLP → weights over available modalities
-    Weighted sum of branch embeddings → classifier head → logit
+    Gate MLP -> weights over available modalities
+    Weighted sum of branch embeddings -> classifier head -> logit
 
 Training trick: random modality dropout forces the gate to learn
 how to reweight when modalities are genuinely missing at inference,
@@ -57,7 +57,7 @@ class GatedFusionModel(nn.Module):
         - cfg.fusion.gate_hidden
         - cfg.fusion.dropout
     tab_dim : int
-        Tabular embedding dimension (from XGBoost → small FC head).
+        Tabular embedding dimension (from XGBoost -> small FC head).
     """
 
     def __init__(self, cfg: DictConfig, tab_dim: int = 64) -> None:
@@ -290,7 +290,7 @@ def train_fusion(
         path = Path(save_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         torch.save({"model_state": model.state_dict(), "history": history}, path)
-        log.info("Fusion model saved → %s", path)
+        log.info("Fusion model saved -> %s", path)
 
     return history
 

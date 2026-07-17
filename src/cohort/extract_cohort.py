@@ -70,7 +70,7 @@ def load_mimic_tables(mimic_iv_dir: str) -> dict[str, pd.DataFrame]:
                 f"Could not find {name} at {gz_path} or {csv_path}. "
                 "Check your MIMIC-IV path in config/config.yaml."
             )
-        log.info("  Loading %s …", path.name)
+        log.info("  Loading %s ...", path.name)
         tables[name] = pd.read_csv(path, low_memory=False)
 
     return tables
@@ -107,7 +107,7 @@ def extract_hf_admissions(
     pd.DataFrame
         One row per qualifying admission with demographic info.
     """
-    log.info("Filtering primary-diagnosis HF admissions …")
+    log.info("Filtering primary-diagnosis HF admissions ...")
 
     # Primary diagnosis only (seq_num == 1 in MIMIC-IV, position may differ)
     primary_dx = diagnoses_icd[diagnoses_icd["seq_num"] == 1].copy()
@@ -133,7 +133,7 @@ def extract_hf_admissions(
     n_before = len(adm)
     adm = adm[adm["hospital_expire_flag"] == 0].copy()
     log.info(
-        "  Excluded %d in-hospital deaths → %d admissions remain",
+        "  Excluded %d in-hospital deaths -> %d admissions remain",
         n_before - len(adm), len(adm),
     )
 
@@ -176,7 +176,7 @@ def label_readmission(
     Label each admission with 30-day unplanned readmission outcome using
     the raw unfiltered admissions table to prevent missing non-HF readmissions.
     """
-    log.info("Labeling 30-day unplanned readmission using raw admissions …")
+    log.info("Labeling 30-day unplanned readmission using raw admissions ...")
 
     # Clean raw admissions for datetime parsing
     raw_adm = admissions.copy()
@@ -260,7 +260,7 @@ def attach_prior_visit_counts(cohort: pd.DataFrame, admissions: pd.DataFrame) ->
     Attach prior 12-month admission count and prior 6-month ED visit count
     for each index admission using the raw unfiltered admissions table.
     """
-    log.info("Computing prior visit counts using raw admissions …")
+    log.info("Computing prior visit counts using raw admissions ...")
 
     raw_adm = admissions.copy()
     raw_adm["admittime"] = pd.to_datetime(raw_adm["admittime"])
@@ -313,7 +313,7 @@ def attach_prior_visit_counts(cohort: pd.DataFrame, admissions: pd.DataFrame) ->
 
 def build_cohort(cfg: DictConfig) -> pd.DataFrame:
     """
-    Full cohort pipeline: load → extract HF → label readmission → save.
+    Full cohort pipeline: load -> extract HF -> label readmission -> save.
     """
     tables = load_mimic_tables(cfg.paths.mimic_iv_dir)
 
@@ -344,7 +344,7 @@ def build_cohort(cfg: DictConfig) -> pd.DataFrame:
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "cohort.parquet"
     cohort.to_parquet(out_path, index=False)
-    log.info("Saved cohort → %s  (%d rows, %d cols)", out_path, *cohort.shape)
+    log.info("Saved cohort -> %s  (%d rows, %d cols)", out_path, *cohort.shape)
 
     return cohort
 

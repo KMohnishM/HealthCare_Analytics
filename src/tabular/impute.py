@@ -81,7 +81,7 @@ def save_imputer(imputer: SimpleImputer, path: str | Path) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(imputer, path)
-    log.info("Imputer saved → %s", path)
+    log.info("Imputer saved -> %s", path)
 
 
 def load_imputer(path: str | Path) -> SimpleImputer:

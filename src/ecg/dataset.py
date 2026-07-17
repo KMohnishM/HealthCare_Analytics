@@ -35,7 +35,7 @@ class ECGDataset(Dataset):
     Parameters
     ----------
     ecg_index : pd.DataFrame
-        Output of ``build_ecg_index`` — maps hadm_id → ecg_record_path.
+        Output of ``build_ecg_index`` — maps hadm_id -> ecg_record_path.
     cohort : pd.DataFrame
         Cohort split with ``hadm_id`` and ``readmitted_30d``.
     cfg : DictConfig
@@ -55,7 +55,7 @@ class ECGDataset(Dataset):
         self.target_len = cfg.ecg.target_len
         self.n_leads   = cfg.ecg.n_leads
 
-        # Build hadm_id → record path lookup
+        # Build hadm_id -> record path lookup
         self.path_map: dict[int, str] = dict(
             zip(ecg_index["hadm_id"], ecg_index["ecg_record_path"])
         )
@@ -65,7 +65,7 @@ class ECGDataset(Dataset):
 
         self._cache: dict[int, Optional[np.ndarray]] = {}
         if cache:
-            log.info("Pre-loading ECG waveforms into cache …")
+            log.info("Pre-loading ECG waveforms into cache ...")
             for hadm_id in self.hadm_ids:
                 self._cache[hadm_id] = self._load(hadm_id)
 

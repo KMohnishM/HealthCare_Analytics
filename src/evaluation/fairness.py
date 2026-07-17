@@ -170,6 +170,6 @@ def plot_fairness_report(
         from pathlib import Path
         Path(save_path).parent.mkdir(parents=True, exist_ok=True)
         plt.savefig(save_path, dpi=150, bbox_inches="tight")
-        log.info("Fairness plot saved → %s", save_path)
+        log.info("Fairness plot saved -> %s", save_path)
 
     plt.show()

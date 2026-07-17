@@ -48,7 +48,7 @@ def main() -> None:
 
     # ── Load cohort splits ────────────────────────────────────────────────────
     cohort_dir = Path(cfg.paths.cohort_dir)
-    log.info("Loading cohort splits from %s …", cohort_dir)
+    log.info("Loading cohort splits from %s ...", cohort_dir)
     train_df = pd.read_parquet(cohort_dir / "train.parquet")
     val_df   = pd.read_parquet(cohort_dir / "val.parquet")
     test_df  = pd.read_parquet(cohort_dir / "test.parquet")
@@ -62,12 +62,12 @@ def main() -> None:
     mimic_hosp = Path(cfg.paths.mimic_iv_dir) / "hosp"
     mimic_icu  = Path(cfg.paths.mimic_iv_dir) / "icu"
 
-    log.info("Loading labevents …")
+    log.info("Loading labevents ...")
     lab_path = mimic_hosp / "labevents.csv.gz"
     labevents = pd.read_csv(lab_path if lab_path.exists() else mimic_hosp / "labevents.csv",
                             low_memory=False)
 
-    log.info("Loading chartevents (selected columns only) …")
+    log.info("Loading chartevents (selected columns only) ...")
     ce_path = mimic_icu / "chartevents.csv.gz"
     chartevents = pd.read_csv(
         ce_path if ce_path.exists() else mimic_icu / "chartevents.csv",
@@ -76,7 +76,7 @@ def main() -> None:
     )
 
     # ── Build feature matrices ────────────────────────────────────────────────
-    log.info("Building feature matrices …")
+    log.info("Building feature matrices ...")
     X_train, y_train, features = build_feature_matrix(train_df, cfg, labevents, chartevents)
     X_val,   y_val,   _        = build_feature_matrix(val_df,   cfg, labevents, chartevents)
     X_test,  y_test,  _        = build_feature_matrix(test_df,  cfg, labevents, chartevents)
@@ -86,7 +86,7 @@ def main() -> None:
     log.info("Top 5 missing features:\n%s", miss_report.head(5).to_string(index=False))
 
     # ── Out-Of-Fold (OOF) Generation for Stacking (Fusion) ───────────────────
-    log.info("Generating Out-Of-Fold predictions via 5-fold CV to prevent Stacking Leakage …")
+    log.info("Generating Out-Of-Fold predictions via 5-fold CV to prevent Stacking Leakage ...")
     kf = KFold(n_splits=5, shuffle=True, random_state=cfg.cohort.random_seed)
     
     oof_scores = np.zeros(len(X_train))
@@ -112,12 +112,12 @@ def main() -> None:
     log.info("OOF prediction generation complete.")
 
     # ── Train final ensemble on full training set ────────────────────────────
-    log.info("Training final tabular ensemble on full training set …")
+    log.info("Training final tabular ensemble on full training set ...")
     model = TabularEnsemble(cfg)
     model.fit(X_train, y_train, X_val, y_val)
 
     # ── Evaluate ──────────────────────────────────────────────────────────────
-    log.info("Evaluating final model on test set …")
+    log.info("Evaluating final model on test set ...")
     test_result = model.predict(X_test)
     metrics = evaluate_all(y_test.values, test_result["score"])
 
@@ -188,7 +188,7 @@ def main() -> None:
         embed_imputed = np.nan_to_num(data["embed"], nan=0.0)
         np.save(embed_path, embed_imputed.astype("float32"))
         out.to_csv(results_dir / f"tabular_preds_{split_name}.csv", index=False)
-        log.info("Saved %s predictions (OOF for train) → %s", split_name, results_dir)
+        log.info("Saved %s predictions (OOF for train) -> %s", split_name, results_dir)
 
     # Feature importance
     importance_df = model.get_feature_importance()
@@ -197,7 +197,7 @@ def main() -> None:
         Path(cfg.paths.results_dir) / "tabular_feature_importance.csv", index=False
     )
 
-    log.info("Tabular branch training complete ✓")
+    log.info("Tabular branch training complete [OK]")
 
 
 if __name__ == "__main__":

@@ -14,7 +14,7 @@ Steps:
 
 Usage:
     from src.ecg.preprocess import build_ecg_index, load_and_preprocess_ecg
-    ecg_index = build_ecg_index(cfg)   # DataFrame of hadm_id → wfdb record path
+    ecg_index = build_ecg_index(cfg)   # DataFrame of hadm_id -> wfdb record path
     signal = load_and_preprocess_ecg(record_path, cfg)  # (12, 5000) float32
 """
 
@@ -75,7 +75,7 @@ def build_ecg_index(
             "Expected 'record_list.csv' or 'machine_measurements.csv'."
         )
 
-    log.info("Loading ECG record list from %s …", record_list_path)
+    log.info("Loading ECG record list from %s ...", record_list_path)
     ecg_records = pd.read_csv(record_list_path, low_memory=False)
     ecg_records["ecg_time"] = pd.to_datetime(ecg_records["ecg_time"], errors="coerce")
     ecg_records = ecg_records.dropna(subset=["ecg_time"])
@@ -152,7 +152,7 @@ def load_and_preprocess_ecg(
         log.warning("Record %s has <12 leads, skipping.", record_path)
         return None
 
-    sig = sig[:, :12].T.astype(np.float32)  # → (12, N)
+    sig = sig[:, :12].T.astype(np.float32)  # -> (12, N)
 
     fs    = rec.fs
     target_fs  = cfg.ecg.sample_rate   # 500 Hz

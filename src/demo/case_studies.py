@@ -108,8 +108,8 @@ CASE_STUDIES: List[Dict] = [
         "description":     (
             "81-year-old female with advanced HF and COPD. "
             "Tabular: low risk (stable labs, short LOS). "
-            "ECG: complex arrhythmia pattern → high risk signal. "
-            "CXR: bilateral pleural effusions → high risk signal. "
+            "ECG: complex arrhythmia pattern -> high risk signal. "
+            "CXR: bilateral pleural effusions -> high risk signal. "
             "Shows where gate learns to override tabular when ECG+CXR disagree."
         ),
         "age": 81, "gender": "F", "los_days": 4.0,

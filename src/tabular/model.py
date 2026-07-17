@@ -12,9 +12,9 @@ Usage:
     model = TabularEnsemble(cfg)
     model.fit(X_train, y_train, X_val, y_val)
     result = model.predict(X_test)
-    # result['score']      → np.ndarray of risk probabilities
-    # result['confidence'] → np.ndarray in [0, 1]
-    # result['std']        → np.ndarray of prediction std
+    # result['score']      -> np.ndarray of risk probabilities
+    # result['confidence'] -> np.ndarray in [0, 1]
+    # result['std']        -> np.ndarray of prediction std
 """
 
 from __future__ import annotations
@@ -190,7 +190,7 @@ class TabularEnsemble:
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "wb") as f:
             pickle.dump(self, f)
-        log.info("Tabular ensemble saved → %s", path)
+        log.info("Tabular ensemble saved -> %s", path)
 
     @classmethod
     def load(cls, path: str | Path) -> "TabularEnsemble":

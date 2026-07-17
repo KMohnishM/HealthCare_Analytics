@@ -123,7 +123,7 @@ def main() -> None:
     test_df    = pd.read_parquet(cohort_dir / "test.parquet")
 
     # ── Build ECG index ───────────────────────────────────────────────────────
-    log.info("Building ECG index …")
+    log.info("Building ECG index ...")
     all_cohort = pd.concat([train_df, val_df, test_df], ignore_index=True)
     ecg_index  = build_ecg_index(all_cohort, cfg)
 
@@ -136,7 +136,7 @@ def main() -> None:
     test_loader  = make_ecg_loader(test_ds,  batch_size=cfg.ecg.batch_size)
 
     # ── Out-Of-Fold (OOF) Generation for Stacking (Fusion) ───────────────────
-    log.info("Generating Out-Of-Fold ECG predictions via 5-fold CV to prevent Stacking Leakage …")
+    log.info("Generating Out-Of-Fold ECG predictions via 5-fold CV to prevent Stacking Leakage ...")
     kf = KFold(n_splits=5, shuffle=True, random_state=cfg.ecg.random_seed)
     
     oof_probs  = np.zeros(len(train_df), dtype=np.float32)
@@ -187,7 +187,7 @@ def main() -> None:
     log.info("ECG OOF prediction generation complete.")
 
     # ── Train final model on full training set ───────────────────────────────
-    log.info("Training final ECGResNet model on full training set …")
+    log.info("Training final ECGResNet model on full training set ...")
     model = ECGResNet(cfg).to(device)
     log.info(
         "ECGResNet params: %d",
@@ -228,7 +228,7 @@ def main() -> None:
     # ── Save model ────────────────────────────────────────────────────────────
     model_path = Path(cfg.paths.models_dir) / "ecg_resnet.pt"
     torch.save({"model_state": model.state_dict(), "cfg": dict(cfg.ecg)}, model_path)
-    log.info("ECG model saved → %s", model_path)
+    log.info("ECG model saved -> %s", model_path)
 
     # ── Generate embeddings and predictions for fusion ────────────────────────
     proc_dir = Path(cfg.paths.processed_dir)
@@ -244,14 +244,14 @@ def main() -> None:
     })
     train_out_df.to_csv(proc_dir / "ecg_preds_train.csv", index=False)
     np.save(proc_dir / "ecg_embed_train.npy", oof_embeds.astype("float32"))
-    log.info("Saved train ECG OOF outputs → %s", proc_dir)
+    log.info("Saved train ECG OOF outputs -> %s", proc_dir)
 
     # Save val & test outputs using the final trained model
     for split_name, loader, split_df in [
         ("val",   val_loader,   val_df),
         ("test",  test_loader,  test_df),
     ]:
-        log.info("Generating MC-Dropout predictions for %s split …", split_name)
+        log.info("Generating MC-Dropout predictions for %s split ...", split_name)
         all_probs, all_confs, all_embeds, all_avail_flags = [], [], [], []
 
         model.eval()
@@ -280,7 +280,7 @@ def main() -> None:
         })
         out_df.to_csv(proc_dir / f"ecg_preds_{split_name}.csv", index=False)
         np.save(proc_dir / f"ecg_embed_{split_name}.npy", embeds.astype("float32"))
-        log.info("Saved %s ECG outputs → %s", split_name, proc_dir)
+        log.info("Saved %s ECG outputs -> %s", split_name, proc_dir)
 
     # ── Test evaluation (on available ECG patients) ──────────────────────────
     test_preds_df = pd.read_csv(proc_dir / "ecg_preds_test.csv")
@@ -295,7 +295,7 @@ def main() -> None:
         log.info("  %s: %.4f", k, v)
     log.info("=" * 60)
 
-    log.info("ECG branch training complete ✓")
+    log.info("ECG branch training complete [OK]")
 
 
 if __name__ == "__main__":

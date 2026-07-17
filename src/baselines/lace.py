@@ -183,7 +183,7 @@ def compute_lace_scores(
     """
     Compute LACE scores for all admissions and calibrate to probability.
 
-    Calibration: fit a logistic regression mapping LACE score → probability
+    Calibration: fit a logistic regression mapping LACE score -> probability
     on the training set. Apply to full cohort for a fair same-population
     probability estimate.
 
@@ -203,7 +203,7 @@ def compute_lace_scores(
     pd.DataFrame
         Columns: hadm_id, lace_l, lace_a, lace_c, lace_e, lace_score, lace_prob.
     """
-    log.info("Computing Charlson CCI for %d admissions …", len(cohort))
+    log.info("Computing Charlson CCI for %d admissions ...", len(cohort))
     cci = compute_charlson_index(cohort["hadm_id"], diagnoses_icd)
 
     results = []
@@ -225,9 +225,9 @@ def compute_lace_scores(
 
     df = pd.DataFrame(results)
 
-    # Calibrate score → probability if training data provided
+    # Calibrate score -> probability if training data provided
     if y_train is not None and lace_train is not None:
-        log.info("Calibrating LACE score to probability …")
+        log.info("Calibrating LACE score to probability ...")
         X_cal = lace_train.values.reshape(-1, 1)
         y_cal = y_train.values
         cal_model = LogisticRegression(max_iter=500)

@@ -4,9 +4,9 @@ src/cxr/model.py
 DenseNet-121 transfer learning encoder for CXR classification with MC-Dropout.
 
 Architecture:
-    DenseNet-121 backbone (frozen) → feature vector (1024-d)
-    → projection head: Linear(1024 → 256) → ReLU → Dropout
-    → classification head: Linear(256 → 1) logit
+    DenseNet-121 backbone (frozen) -> feature vector (1024-d)
+    -> projection head: Linear(1024 -> 256) -> ReLU -> Dropout
+    -> classification head: Linear(256 -> 1) logit
 
 The backbone is loaded from timm with pretrained ImageNet weights.
 Only the projection + classification heads are trained.

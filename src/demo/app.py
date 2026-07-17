@@ -14,7 +14,7 @@ Features:
   - Patient data input (tabular fields, upload ECG/CXR)
   - Risk score display with risk tier badge
   - Branch-level score breakdown with confidence bars
-  - Live modality toggle → score updates as modalities removed
+  - Live modality toggle -> score updates as modalities removed
   - SHAP waterfall tab (pre-loaded for demo patients)
   - Grad-CAM overlay tab
   - Case study walkthroughs
@@ -353,8 +353,8 @@ with tab_results:
         hosp_prob = 1 / (1 + np.exp(-(hosp_val - 7) / 2))
 
         st.markdown("**Clinical Baselines for Reference**")
-        st.caption(f"LACE Score: {lace_val}/19 → Prob ≈ {lace_prob:.1%}")
-        st.caption(f"HOSPITAL Score: {hosp_val}/13 → Prob ≈ {hosp_prob:.1%}")
+        st.caption(f"LACE Score: {lace_val}/19 -> Prob ≈ {lace_prob:.1%}")
+        st.caption(f"HOSPITAL Score: {hosp_val}/13 -> Prob ≈ {hosp_prob:.1%}")
 
     with col_branch:
         st.markdown("**Branch Score Breakdown**")
@@ -400,7 +400,7 @@ with tab_results:
         elif fused_prob >= 0.25:
             st.warning("⚠️ MODERATE — Schedule within 48h")
         else:
-            st.success("✓ Standard — Routine follow-up")
+            st.success("[OK] Standard — Routine follow-up")
 
     with col_b:
         st.markdown("**📋 Care Plan**")

@@ -119,7 +119,7 @@ def main() -> None:
     test_df    = pd.read_parquet(cohort_dir / "test.parquet")
 
     # ── Build CXR index ───────────────────────────────────────────────────────
-    log.info("Building CXR index …")
+    log.info("Building CXR index ...")
     all_cohort = pd.concat([train_df, val_df, test_df], ignore_index=True)
     cxr_index  = build_cxr_index(all_cohort, cfg)
     cxr_index.to_csv(Path(cfg.paths.processed_dir) / "cxr_index.csv", index=False)
@@ -135,7 +135,7 @@ def main() -> None:
     test_loader  = make_cxr_loader(test_ds,  batch_size=cfg.cxr.batch_size, shuffle=False, num_workers=0)
 
     # ── Out-Of-Fold (OOF) Generation for Stacking (Fusion) ───────────────────
-    log.info("Generating Out-Of-Fold CXR predictions via 5-fold CV to prevent Stacking Leakage …")
+    log.info("Generating Out-Of-Fold CXR predictions via 5-fold CV to prevent Stacking Leakage ...")
     kf = KFold(n_splits=5, shuffle=True, random_state=cfg.cxr.random_seed)
     
     oof_probs  = np.zeros(len(train_df), dtype=np.float32)
@@ -188,7 +188,7 @@ def main() -> None:
     log.info("CXR OOF prediction generation complete.")
 
     # ── Train final model on full training set ───────────────────────────────
-    log.info("Training final CXREncoder model on full training set …")
+    log.info("Training final CXREncoder model on full training set ...")
     model = CXREncoder(cfg).to(device)
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     log.info("CXREncoder trainable params: %d", trainable)
@@ -230,7 +230,7 @@ def main() -> None:
     # ── Save model ────────────────────────────────────────────────────────────
     model_path = Path(cfg.paths.models_dir) / "cxr_densenet.pt"
     torch.save({"model_state": model.state_dict()}, model_path)
-    log.info("CXR model saved → %s", model_path)
+    log.info("CXR model saved -> %s", model_path)
 
     # ── Generate MC-Dropout embeddings for fusion ─────────────────────────────
     proc_dir = Path(cfg.paths.processed_dir)
@@ -246,14 +246,14 @@ def main() -> None:
     })
     train_out_df.to_csv(proc_dir / "cxr_preds_train.csv", index=False)
     np.save(proc_dir / "cxr_embed_train.npy", oof_embeds.astype("float32"))
-    log.info("Saved train CXR OOF outputs → %s", proc_dir)
+    log.info("Saved train CXR OOF outputs -> %s", proc_dir)
 
     # Save val & test outputs using the final trained model
     for split_name, loader, split_df in [
         ("val",   val_loader,   val_df),
         ("test",  test_loader,  test_df),
     ]:
-        log.info("Generating MC-Dropout predictions for %s split …", split_name)
+        log.info("Generating MC-Dropout predictions for %s split ...", split_name)
         all_probs, all_confs, all_embeds, all_avail_flags = [], [], [], []
 
         for batch in loader:
@@ -279,7 +279,7 @@ def main() -> None:
         })
         out_df.to_csv(proc_dir / f"cxr_preds_{split_name}.csv", index=False)
         np.save(proc_dir / f"cxr_embed_{split_name}.npy", embeds.astype("float32"))
-        log.info("Saved %s CXR outputs → %s", split_name, proc_dir)
+        log.info("Saved %s CXR outputs -> %s", split_name, proc_dir)
 
     # ── Test metrics ──────────────────────────────────────────────────────────
     test_preds_df = pd.read_csv(proc_dir / "cxr_preds_test.csv")
@@ -294,7 +294,7 @@ def main() -> None:
         log.info("  %s: %.4f", k, v)
     log.info("=" * 60)
 
-    log.info("CXR branch training complete ✓")
+    log.info("CXR branch training complete [OK]")
 
 
 if __name__ == "__main__":

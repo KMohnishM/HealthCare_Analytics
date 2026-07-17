@@ -64,7 +64,7 @@ def _make_availability_mask(
 
     Returns
     -------
-    dict: modality → (n,) binary array.
+    dict: modality -> (n,) binary array.
     """
     return {
         mod: np.ones(n, dtype=np.float32) if mod in subset else np.zeros(n, dtype=np.float32)
@@ -166,7 +166,7 @@ def run_missingness_sweep(
     subsets = _all_subsets(MODALITIES)
 
     records = []
-    log.info("Running missingness sweep over %d modality combinations …", len(subsets))
+    log.info("Running missingness sweep over %d modality combinations ...", len(subsets))
 
     for subset in subsets:
         subset_label  = "+".join(s[:3].upper() for s in subset)
@@ -261,6 +261,6 @@ def plot_missingness_sweep(
         from pathlib import Path
         Path(save_path).parent.mkdir(parents=True, exist_ok=True)
         plt.savefig(save_path, dpi=150, bbox_inches="tight")
-        log.info("Missingness sweep figure saved → %s", save_path)
+        log.info("Missingness sweep figure saved -> %s", save_path)
 
     plt.show()

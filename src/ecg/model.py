@@ -5,11 +5,11 @@ src/ecg/model.py
 
 Architecture:
     Input (B, 12, 5000)
-    → Stem Conv + MaxPool
-    → 4× ResBlock1D (64→128→256→embed_dim channels, stride-2 downsampling)
-    → AdaptiveAvgPool → Dropout → FC → embed vector (B, embed_dim)
+    -> Stem Conv + MaxPool
+    -> 4× ResBlock1D (64->128->256->embed_dim channels, stride-2 downsampling)
+    -> AdaptiveAvgPool -> Dropout -> FC -> embed vector (B, embed_dim)
 
-A separate head maps embed → scalar risk score (logit).
+A separate head maps embed -> scalar risk score (logit).
 MC-Dropout is applied at inference by enabling Dropout layers while
 keeping BatchNorm in eval mode.
 

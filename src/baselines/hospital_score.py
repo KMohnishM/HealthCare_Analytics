@@ -4,13 +4,13 @@ src/baselines/hospital_score.py
 HOSPITAL score computation for the HF cohort.
 
 HOSPITAL score components (0–13):
-  H — Hemoglobin at discharge < 12 g/dL         → 1 point
-  O — Oncology service                           → 2 points
-  S — Sodium at discharge < 135 mmol/L           → 1 point
-  P — Any ICD procedure during stay              → 1 point
-  I — Index admission (urgent/emergent)          → 1 point
-  T — Total admissions in prior 12 months        → 0/2/5 points
-  A — Admission length of stay ≥ 5 days          → 2 points
+  H — Hemoglobin at discharge < 12 g/dL         -> 1 point
+  O — Oncology service                           -> 2 points
+  S — Sodium at discharge < 135 mmol/L           -> 1 point
+  P — Any ICD procedure during stay              -> 1 point
+  I — Index admission (urgent/emergent)          -> 1 point
+  T — Total admissions in prior 12 months        -> 0/2/5 points
+  A — Admission length of stay ≥ 5 days          -> 2 points
 
 Risk tiers: Low 0-4 | Intermediate 5-6 | High ≥7
 Reference: Donzé et al., Circulation 2014.
@@ -58,38 +58,38 @@ def _get_last_lab_value(
 
 
 def hospital_h(hgb: float) -> int:
-    """H component: hemoglobin < 12 → 1 point."""
+    """H component: hemoglobin < 12 -> 1 point."""
     if np.isnan(hgb):
         return 0   # treat missing as normal (conservative)
     return 1 if hgb < 12.0 else 0
 
 
 def hospital_o(current_service: str) -> int:
-    """O component: oncology service → 2 points."""
+    """O component: oncology service -> 2 points."""
     if pd.isna(current_service):
         return 0
     return 2 if str(current_service).lower().strip() in ONCOLOGY_SERVICES else 0
 
 
 def hospital_s(sodium: float) -> int:
-    """S component: sodium < 135 → 1 point."""
+    """S component: sodium < 135 -> 1 point."""
     if np.isnan(sodium):
         return 0
     return 1 if sodium < 135.0 else 0
 
 
 def hospital_p(has_procedure: bool) -> int:
-    """P component: any ICD-coded procedure during stay → 1 point."""
+    """P component: any ICD-coded procedure during stay -> 1 point."""
     return 1 if has_procedure else 0
 
 
 def hospital_i(via_ed: bool) -> int:
-    """I component: urgent/emergent admission → 1 point."""
+    """I component: urgent/emergent admission -> 1 point."""
     return 1 if via_ed else 0
 
 
 def hospital_t(prior_admits_12m: int) -> int:
-    """T component: total prior admissions in 12 months → 0/2/5 points."""
+    """T component: total prior admissions in 12 months -> 0/2/5 points."""
     if prior_admits_12m <= 1:
         return 0
     elif prior_admits_12m <= 5:
@@ -99,7 +99,7 @@ def hospital_t(prior_admits_12m: int) -> int:
 
 
 def hospital_a(los_days: float) -> int:
-    """A component: LOS ≥ 5 days → 2 points."""
+    """A component: LOS ≥ 5 days -> 2 points."""
     return 2 if los_days >= 5.0 else 0
 
 
@@ -130,7 +130,7 @@ def compute_hospital_scores(
         Columns: hadm_id, H, O, S, P, I, T, A,
                  hospital_score, hospital_risk_tier, hospital_prob.
     """
-    log.info("Computing HOSPITAL scores for %d admissions …", len(cohort))
+    log.info("Computing HOSPITAL scores for %d admissions ...", len(cohort))
 
     # Filter labevents to only needed itemids for performance
     labs = labevents[
@@ -182,7 +182,7 @@ def compute_hospital_scores(
 
     # Calibrate to probability
     if y_train is not None and hosp_train is not None:
-        log.info("Calibrating HOSPITAL score to probability …")
+        log.info("Calibrating HOSPITAL score to probability ...")
         X_cal = hosp_train.values.reshape(-1, 1)
         y_cal = y_train.values
         cal_model = LogisticRegression(max_iter=500)

@@ -47,7 +47,7 @@ def extract_lab_features(
     labevents : pd.DataFrame
         MIMIC-IV labevents table.
     lab_itemids : dict
-        Map from lab name → list of itemids.
+        Map from lab name -> list of itemids.
     window_hours : int
         Look-back window in hours before discharge.
 
@@ -56,9 +56,9 @@ def extract_lab_features(
     pd.DataFrame
         Index = hadm_id, columns = lab names (one value per lab).
     """
-    log.info("Extracting lab features (window=%dh) …", window_hours)
+    log.info("Extracting lab features (window=%dh) ...", window_hours)
 
-    # Flatten itemid → lab name mapping
+    # Flatten itemid -> lab name mapping
     itemid_to_name: dict[int, str] = {}
     for lab_name, ids in lab_itemids.items():
         for iid in ids:
@@ -114,7 +114,7 @@ def extract_vital_features(
     chartevents : pd.DataFrame
         MIMIC-IV chartevents table (large — consider chunked reading).
     vital_itemids : dict
-        Map from vital name → list of itemids.
+        Map from vital name -> list of itemids.
     window_hours : int
         Look-back window in hours before discharge.
 
@@ -123,7 +123,7 @@ def extract_vital_features(
     pd.DataFrame
         Index = hadm_id, columns = vital_{name}_{stat} (mean/min/max).
     """
-    log.info("Extracting vital features (window=%dh) …", window_hours)
+    log.info("Extracting vital features (window=%dh) ...", window_hours)
 
     itemid_to_name: dict[int, str] = {}
     for vname, ids in vital_itemids.items():
@@ -253,7 +253,7 @@ def build_feature_matrix(
 
     # Load tables if not supplied (allows passing pre-loaded for efficiency)
     if labevents is None:
-        log.info("Loading and filtering labevents in chunks …")
+        log.info("Loading and filtering labevents in chunks ...")
         lab_path = mimic_hosp / "labevents.csv.gz"
         if not lab_path.exists():
             lab_path = mimic_hosp / "labevents.csv"
@@ -267,7 +267,7 @@ def build_feature_matrix(
         log.info("  Loaded %d labevents records", len(labevents))
 
     if chartevents is None:
-        log.info("Loading and filtering chartevents in chunks …")
+        log.info("Loading and filtering chartevents in chunks ...")
         ce_path = mimic_icu / "chartevents.csv.gz"
         if not ce_path.exists():
             ce_path = mimic_icu / "chartevents.csv"

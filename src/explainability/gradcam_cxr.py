@@ -93,7 +93,7 @@ def generate_gradcam(
 
     Returns
     -------
-    dict : hadm_id → heatmap array (H, W) float32, values in [0, 1].
+    dict : hadm_id -> heatmap array (H, W) float32, values in [0, 1].
     """
     try:
         from pytorch_grad_cam import GradCAM
@@ -187,7 +187,7 @@ def generate_gradcam(
         if save_dir:
             fname = Path(save_dir) / f"gradcam_{hadm_id}.png"
             plt.savefig(fname, dpi=150, bbox_inches="tight")
-            log.info("Grad-CAM saved → %s", fname)
+            log.info("Grad-CAM saved -> %s", fname)
 
         plt.show()
         plt.close()

@@ -1,7 +1,7 @@
 """
 scripts/run_cohort.py
 ----------------------
-End-to-end cohort extraction: MIMIC-IV → labeled cohort → train/val/test splits.
+End-to-end cohort extraction: MIMIC-IV -> labeled cohort -> train/val/test splits.
 
 Run from project root:
     python scripts/run_cohort.py
@@ -33,7 +33,7 @@ def main() -> None:
     ensure_dirs(cfg)
     set_seed(cfg.cohort.random_seed)
 
-    log.info("Starting cohort extraction …")
+    log.info("Starting cohort extraction ...")
     cohort = build_cohort(cfg)
 
     log.info("\nCohort summary:")
@@ -42,10 +42,10 @@ def main() -> None:
     log.info("  Readmit rate     : %.1f%%", 100 * cohort["readmitted_30d"].mean())
     log.info("  Competing events : %.1f%%", 100 * cohort["competing_event"].mean())
 
-    log.info("\nSplitting cohort …")
+    log.info("\nSplitting cohort ...")
     train_df, val_df, test_df = split_cohort(cohort, cfg)
 
-    log.info("\nCohort extraction complete ✓")
+    log.info("\nCohort extraction complete [OK]")
     log.info("Files saved to: %s", cfg.paths.cohort_dir)
 
 
