@@ -220,6 +220,8 @@ def main() -> None:
             best_val_auc = val_auc
             best_state   = {k: v.cpu() for k, v in model.state_dict().items()}
 
+    if best_state is None:
+        best_state = {k: v.cpu() for k, v in model.state_dict().items()}
     model.load_state_dict(best_state)
     log.info("Best val AUROC: %.4f", best_val_auc)
 
