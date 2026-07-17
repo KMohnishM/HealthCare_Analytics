@@ -74,19 +74,34 @@ def split_cohort(
         100 * train_frac, 100 * val_frac, 100 * test_frac,
     )
 
+    # Determine if stratification is possible (requires at least 2 samples per class)
+    class_counts = subjects["label"].value_counts()
+    can_stratify = len(class_counts) > 1 and class_counts.min() >= 2
+
+    if not can_stratify:
+        log.warning(
+            "  Class count for least populated class is too small (min count: %s). "
+            "  Falling back to non-stratified splitting.",
+            class_counts.min() if len(class_counts) > 0 else 0
+        )
+
     # First split: train vs (val + test)
     train_subjects, temp_subjects = train_test_split(
         subjects,
         test_size=(val_frac + test_frac),
-        stratify=subjects["label"],
+        stratify=subjects["label"] if can_stratify else None,
         random_state=seed,
     )
+
+    # Determine if stratification is possible for second split
+    temp_class_counts = temp_subjects["label"].value_counts()
+    can_stratify_temp = len(temp_class_counts) > 1 and temp_class_counts.min() >= 2
 
     # Second split: val vs test from the temp set
     val_subjects, test_subjects = train_test_split(
         temp_subjects,
         test_size=(test_frac / (val_frac + test_frac)),
-        stratify=temp_subjects["label"],
+        stratify=temp_subjects["label"] if can_stratify_temp else None,
         random_state=seed,
     )
 
