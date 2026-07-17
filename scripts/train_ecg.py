@@ -131,6 +131,10 @@ def main() -> None:
     train_ds = ECGDataset(ecg_index, train_df, cfg)
     val_ds   = ECGDataset(ecg_index, val_df,   cfg)
     test_ds  = ECGDataset(ecg_index, test_df,  cfg)
+    train_loader = make_ecg_loader(train_ds, batch_size=cfg.ecg.batch_size, shuffle=True)
+    val_loader   = make_ecg_loader(val_ds,   batch_size=cfg.ecg.batch_size)
+    test_loader  = make_ecg_loader(test_ds,  batch_size=cfg.ecg.batch_size)
+
     # ── Out-Of-Fold (OOF) Generation for Stacking (Fusion) ───────────────────
     log.info("Generating Out-Of-Fold ECG predictions via 5-fold CV to prevent Stacking Leakage …")
     kf = KFold(n_splits=5, shuffle=True, random_state=cfg.ecg.random_seed)
