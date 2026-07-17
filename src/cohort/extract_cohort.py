@@ -168,65 +168,53 @@ def extract_hf_admissions(
 
 def label_readmission(
     cohort: pd.DataFrame,
+    admissions: pd.DataFrame,
     readmission_days: int = 30,
     planned_types: tuple[str, ...] = ("ELECTIVE", "SCHEDULED"),
 ) -> pd.DataFrame:
     """
-    Label each admission with 30-day unplanned readmission outcome.
-
-    Algorithm:
-    - For each index admission, find any *subsequent* admission for the
-      same patient within ``readmission_days`` of discharge.
-    - Planned readmissions (elective/scheduled) are excluded.
-    - Death within 30 days without readmission → ``competing_event = 1``.
-
-    Parameters
-    ----------
-    cohort : pd.DataFrame
-        Output of ``extract_hf_admissions``.
-    readmission_days : int
-        Readmission window in days.
-    planned_types : tuple of str
-        Admission types considered planned (excluded from readmission label).
-
-    Returns
-    -------
-    pd.DataFrame
-        cohort with added columns:
-        - ``readmitted_30d``  (int, 0/1)
-        - ``competing_event`` (int, 0/1 — died within 30d without readmission)
-        - ``days_to_readmit`` (float, NaN if not readmitted)
+    Label each admission with 30-day unplanned readmission outcome using
+    the raw unfiltered admissions table to prevent missing non-HF readmissions.
     """
-    log.info("Labeling 30-day unplanned readmission …")
+    log.info("Labeling 30-day unplanned readmission using raw admissions …")
 
-    # Sort by patient and admission time
-    cohort = cohort.sort_values(["subject_id", "admittime"]).copy()
+    # Clean raw admissions for datetime parsing
+    raw_adm = admissions.copy()
+    raw_adm["admittime"] = pd.to_datetime(raw_adm["admittime"])
+    raw_adm["dischtime"] = pd.to_datetime(raw_adm["dischtime"])
 
     # Map admission types that count as unplanned
-    unplanned_mask = ~cohort["admission_type"].str.upper().isin(
+    unplanned_mask = ~raw_adm["admission_type"].str.upper().isin(
         [t.upper() for t in planned_types]
     )
-    unplanned_hadm_ids = set(cohort.loc[unplanned_mask, "hadm_id"])
+    unplanned_hadm_ids = set(raw_adm.loc[unplanned_mask, "hadm_id"])
 
     labels: dict[int, dict] = {}
+    
+    # Pre-index raw admissions by subject_id for fast lookup
+    raw_adm_grouped = {
+        sub_id: grp.sort_values("admittime").reset_index(drop=True)
+        for sub_id, grp in raw_adm.groupby("subject_id")
+    }
 
-    for subject_id, grp in cohort.groupby("subject_id"):
-        grp = grp.sort_values("admittime").reset_index(drop=True)
+    for _, row in cohort.iterrows():
+        hadm_id = row["hadm_id"]
+        subject_id = row["subject_id"]
+        dischtime = row["dischtime"]
+        dod = row["dod"]           # may be NaT
 
-        for i, row in grp.iterrows():
-            hadm_id   = row["hadm_id"]
-            dischtime = row["dischtime"]
-            dod        = row["dod"]           # may be NaT
+        patient_visits = raw_adm_grouped.get(subject_id, pd.DataFrame())
 
+        if len(patient_visits) > 0:
             # Look for subsequent unplanned admissions within 30 days
-            future = grp[
-                (grp["admittime"] > dischtime)
-                & (grp["admittime"] <= dischtime + pd.Timedelta(days=readmission_days))
-                & (grp["hadm_id"].isin(unplanned_hadm_ids))
+            future = patient_visits[
+                (patient_visits["admittime"] > dischtime)
+                & (patient_visits["admittime"] <= dischtime + pd.Timedelta(days=readmission_days))
+                & (patient_visits["hadm_id"].isin(unplanned_hadm_ids))
             ].sort_values("admittime")
 
             if len(future) > 0:
-                next_adm   = future.iloc[0]
+                next_adm = future.iloc[0]
                 days_delta = (next_adm["admittime"] - dischtime).total_seconds() / 86400
                 labels[hadm_id] = {
                     "readmitted_30d": 1,
@@ -244,6 +232,12 @@ def label_readmission(
                     "competing_event": int(died_within_30d),
                     "days_to_readmit": float("nan"),
                 }
+        else:
+            labels[hadm_id] = {
+                "readmitted_30d": 0,
+                "competing_event": 0,
+                "days_to_readmit": float("nan"),
+            }
 
     label_df = pd.DataFrame.from_dict(labels, orient="index")
     label_df.index.name = "hadm_id"
@@ -261,48 +255,53 @@ def label_readmission(
     return cohort
 
 
-def attach_prior_visit_counts(cohort: pd.DataFrame) -> pd.DataFrame:
+def attach_prior_visit_counts(cohort: pd.DataFrame, admissions: pd.DataFrame) -> pd.DataFrame:
     """
     Attach prior 12-month admission count and prior 6-month ED visit count
-    for each index admission (required for LACE/HOSPITAL scores).
-
-    Parameters
-    ----------
-    cohort : pd.DataFrame
-        Output of ``label_readmission``.
-
-    Returns
-    -------
-    pd.DataFrame
-        With added columns ``prior_admits_12m`` and ``ed_visits_6m``.
+    for each index admission using the raw unfiltered admissions table.
     """
-    log.info("Computing prior visit counts …")
+    log.info("Computing prior visit counts using raw admissions …")
 
-    cohort = cohort.sort_values(["subject_id", "admittime"]).copy()
+    raw_adm = admissions.copy()
+    raw_adm["admittime"] = pd.to_datetime(raw_adm["admittime"])
+    raw_adm["via_ed"] = raw_adm["admission_type"].str.upper().isin(
+        {"EMERGENCY", "URGENT", "EW EMER."}
+    )
+
+    raw_adm_grouped = {
+        sub_id: grp.sort_values("admittime").reset_index(drop=True)
+        for sub_id, grp in raw_adm.groupby("subject_id")
+    }
+
     prior_admits_12m = []
     ed_visits_6m = []
 
-    for subject_id, grp in cohort.groupby("subject_id"):
-        grp = grp.sort_values("admittime").reset_index(drop=False)
-
-        for idx_row in grp.itertuples():
-            admit_t = idx_row.admittime
+    for _, row in cohort.iterrows():
+        subject_id = row["subject_id"]
+        admit_t = row["admittime"]
+        
+        patient_visits = raw_adm_grouped.get(subject_id, pd.DataFrame())
+        
+        if len(patient_visits) > 0:
             cutoff_12m = admit_t - pd.Timedelta(days=365)
             cutoff_6m  = admit_t - pd.Timedelta(days=180)
 
-            # Prior admissions (excluding current)
-            prior_12m = grp[
-                (grp["admittime"] >= cutoff_12m) & (grp["admittime"] < admit_t)
+            # Prior admissions (excluding current index admission)
+            prior_12m = patient_visits[
+                (patient_visits["admittime"] >= cutoff_12m) & (patient_visits["admittime"] < admit_t)
             ]
             prior_admits_12m.append(len(prior_12m))
 
             # Prior ED visits within 6 months
-            ed_6m = grp[
-                (grp["admittime"] >= cutoff_6m)
-                & (grp["admittime"] < admit_t)
-                & (grp["via_ed"] == True)
+            ed_6m = patient_visits[
+                (patient_visits["admittime"] >= cutoff_6m)
+                & (patient_visits["admittime"] < admit_t)
+                & (patient_visits["via_ed"] == True)
             ]
             ed_visits_6m.append(len(ed_6m))
+        else:
+            prior_admits_12m.append(0)
+            ed_visits_6m.append(0)
 
     cohort["prior_admits_12m"] = prior_admits_12m
     cohort["ed_visits_6m"]     = ed_visits_6m
@@ -315,16 +314,6 @@ def attach_prior_visit_counts(cohort: pd.DataFrame) -> pd.DataFrame:
 def build_cohort(cfg: DictConfig) -> pd.DataFrame:
     """
     Full cohort pipeline: load → extract HF → label readmission → save.
-
-    Parameters
-    ----------
-    cfg : DictConfig
-        Loaded project configuration.
-
-    Returns
-    -------
-    pd.DataFrame
-        Final cohort DataFrame saved to ``cfg.paths.cohort_dir/cohort.parquet``.
     """
     tables = load_mimic_tables(cfg.paths.mimic_iv_dir)
 
@@ -341,12 +330,14 @@ def build_cohort(cfg: DictConfig) -> pd.DataFrame:
     has_proc = procs.groupby("hadm_id").size().rename("has_procedure")
     cohort["has_procedure"] = cohort["hadm_id"].map(has_proc).fillna(0).astype(bool)
 
+    # Compute labels and prior visits using the unfiltered raw admissions table
     cohort = label_readmission(
         cohort,
+        admissions=tables["admissions"],
         readmission_days=cfg.cohort.readmission_days,
     )
 
-    cohort = attach_prior_visit_counts(cohort)
+    cohort = attach_prior_visit_counts(cohort, admissions=tables["admissions"])
 
     # Save
     out_dir = Path(cfg.paths.cohort_dir)
@@ -356,3 +347,4 @@ def build_cohort(cfg: DictConfig) -> pd.DataFrame:
     log.info("Saved cohort → %s  (%d rows, %d cols)", out_path, *cohort.shape)
 
     return cohort
+
