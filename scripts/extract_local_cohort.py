@@ -87,19 +87,16 @@ def main():
 
     # 2. ── Extract CXR Images ──
     print("\n=== STEP 2: Copying Filtered CXRs ===")
-    cxr_meta_path = raw_cxr_dir / "mimic-cxr-2.0.0-metadata.csv.gz"
-    if not cxr_meta_path.exists():
-        # Check uncompressed csv
-        cxr_meta_path = raw_cxr_dir / "mimic-cxr-2.0.0-metadata.csv"
-        
-    if not cxr_meta_path.exists():
+    cxr_meta_files = list(raw_cxr_dir.glob("mimic-cxr-*-metadata.csv*"))
+    if not cxr_meta_files:
         print(f"Warning: CXR metadata file not found in {raw_cxr_dir}. Skipping CXR extraction.")
     else:
+        cxr_meta_path = cxr_meta_files[0]
         cxr_meta_df = pd.read_csv(cxr_meta_path)
         matching_cxr = cxr_meta_df[cxr_meta_df["subject_id"].isin(subject_ids)]
         print(f"Found {len(matching_cxr)} matching CXR records.")
 
-        dest_cxr_dir = compact_root / "raw" / "mimic-cxr-jpg-2.0.0"
+        dest_cxr_dir = compact_root / "raw" / raw_cxr_dir.name
         dest_cxr_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy(cxr_meta_path, dest_cxr_dir / cxr_meta_path.name)
 

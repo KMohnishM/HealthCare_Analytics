@@ -83,12 +83,12 @@ def main():
 
     # 2. ── Download CXR Images ──
     print("\n=== STEP 2: Downloading Matching CXRs ===")
-    cxr_bucket = get_gcs_bucket("mimic-cxr-jpg-2.0.0", args.gcp_project, client)
+    cxr_bucket = get_gcs_bucket("mimic-cxr-jpg-2.1.0", args.gcp_project, client)
     
     # Download CXR metadata to find matching subjects
     print("Downloading CXR metadata index...")
-    cxr_meta_dest = Path(args.out_dir) / "raw" / "mimic-cxr-jpg-2.0.0" / "mimic-cxr-2.0.0-metadata.csv.gz"
-    download_blob(cxr_bucket, "mimic-cxr-2.0.0-metadata.csv.gz", cxr_meta_dest)
+    cxr_meta_dest = Path(args.out_dir) / "raw" / "mimic-cxr-jpg-2.1.0" / "mimic-cxr-2.1.0-metadata.csv.gz"
+    download_blob(cxr_bucket, "mimic-cxr-2.1.0-metadata.csv.gz", cxr_meta_dest)
     
     cxr_meta_df = pd.read_csv(cxr_meta_dest, compression="gzip")
     matching_cxr = cxr_meta_df[cxr_meta_df["subject_id"].isin(subject_ids)]
@@ -96,7 +96,7 @@ def main():
 
     # Queue CXR images (.jpg)
     cxr_download_tasks = []
-    raw_cxr_dir = Path(args.out_dir) / "raw" / "mimic-cxr-jpg-2.0.0"
+    raw_cxr_dir = Path(args.out_dir) / "raw" / "mimic-cxr-jpg-2.1.0"
     for _, row in matching_cxr.iterrows():
         # Path details: dicom_id, study_id, subject_id
         # MIMIC-CXR folder format: p{first_2_digits_of_subject_id}/p{subject_id}/s{study_id}/{dicom_id}.jpg

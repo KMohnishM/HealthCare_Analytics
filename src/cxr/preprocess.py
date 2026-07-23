@@ -99,14 +99,14 @@ def build_cxr_index(
     cxr_dir = Path(cfg.paths.mimic_cxr_dir)
     window_h = cfg.cohort.cxr_window_hours
 
-    meta_path = cxr_dir / "mimic-cxr-2.0.0-metadata.csv.gz"
-    if not meta_path.exists():
-        meta_path = cxr_dir / "mimic-cxr-2.0.0-metadata.csv"
-    if not meta_path.exists():
+    # Look for any metadata file matching the pattern mimic-cxr-*-metadata.csv*
+    meta_files = list(cxr_dir.glob("mimic-cxr-*-metadata.csv*"))
+    if not meta_files:
         raise FileNotFoundError(
             f"CXR metadata not found at {cxr_dir}. "
-            "Expected 'mimic-cxr-2.0.0-metadata.csv.gz'."
+            "Expected a file matching 'mimic-cxr-*-metadata.csv*' (e.g. version 2.0.0 or 2.1.0)."
         )
+    meta_path = meta_files[0]
 
     log.info("Loading CXR metadata from %s ...", meta_path.name)
     meta = pd.read_csv(meta_path, low_memory=False)
