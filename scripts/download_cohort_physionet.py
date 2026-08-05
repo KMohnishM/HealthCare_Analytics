@@ -150,8 +150,23 @@ def main():
     download_physionet_file(session, ecg_list_url, ecg_list_dest, force=False)
     
     ecg_records_df = pd.read_csv(ecg_list_dest)
-    matching_ecg = ecg_records_df[ecg_records_df["subject_id"].isin(subject_ids)]
-    print(f"Found {len(matching_ecg)} matching ECG records.")
+    
+    # Smart filtering: keep ECGs within discharge window (72h) or closest per admission
+    if "dischtime" in cohort_df.columns:
+        cohort_sub = cohort_df[["subject_id", "hadm_id", "dischtime"]].copy()
+        cohort_sub["dischtime"] = pd.to_datetime(cohort_sub["dischtime"])
+        ecg_records_df["ecg_time"] = pd.to_datetime(ecg_records_df["ecg_time"], errors="coerce")
+        ecg_merged = cohort_sub.merge(ecg_records_df, on="subject_id", how="inner")
+        ecg_merged["hours_before_disch"] = (ecg_merged["dischtime"] - ecg_merged["ecg_time"]).dt.total_seconds() / 3600
+        in_win = ecg_merged[(ecg_merged["hours_before_disch"] >= 0) & (ecg_merged["hours_before_disch"] <= 168)]  # within 7 days
+        if len(in_win) > 0:
+            matching_ecg = in_win.sort_values("hours_before_disch").groupby("hadm_id").first().reset_index()
+        else:
+            matching_ecg = ecg_records_df[ecg_records_df["subject_id"].isin(subject_ids)].groupby("subject_id").head(2)
+    else:
+        matching_ecg = ecg_records_df[ecg_records_df["subject_id"].isin(subject_ids)].groupby("subject_id").head(2)
+
+    print(f"Found {len(matching_ecg)} matching ECG records for discharge windows.")
 
     ecg_tasks = []
     for _, row in matching_ecg.iterrows():
@@ -175,8 +190,29 @@ def main():
     try:
         download_physionet_file(session, cxr_meta_url, cxr_meta_dest, force=False)
         cxr_meta_df = pd.read_csv(cxr_meta_dest, compression="gzip")
-        matching_cxr = cxr_meta_df[cxr_meta_df["subject_id"].isin(subject_ids)]
-        print(f"Found {len(matching_cxr)} matching CXR records.")
+        
+        # Keep Frontal views closest to discharge
+        frontal_cxr = cxr_meta_df[cxr_meta_df["ViewPosition"].isin(["PA", "AP"])].copy() if "ViewPosition" in cxr_meta_df.columns else cxr_meta_df.copy()
+        
+        if "dischtime" in cohort_df.columns and "StudyDate" in frontal_cxr.columns:
+            cohort_sub = cohort_df[["subject_id", "hadm_id", "dischtime"]].copy()
+            cohort_sub["dischtime"] = pd.to_datetime(cohort_sub["dischtime"])
+            
+            sdate = frontal_cxr["StudyDate"].astype(str)
+            stime = frontal_cxr["StudyTime"].fillna(0).astype(int).astype(str).str.zfill(6)
+            frontal_cxr["study_datetime"] = pd.to_datetime(sdate + " " + stime, format="%Y%m%d %H%M%S", errors="coerce")
+            
+            cxr_merged = cohort_sub.merge(frontal_cxr, on="subject_id", how="inner")
+            cxr_merged["hours_before_disch"] = (cxr_merged["dischtime"] - cxr_merged["study_datetime"]).dt.total_seconds() / 3600
+            in_win_cxr = cxr_merged[(cxr_merged["hours_before_disch"] >= 0) & (cxr_merged["hours_before_disch"] <= 168)]  # within 7 days
+            if len(in_win_cxr) > 0:
+                matching_cxr = in_win_cxr.sort_values("hours_before_disch").groupby("hadm_id").first().reset_index()
+            else:
+                matching_cxr = frontal_cxr[frontal_cxr["subject_id"].isin(subject_ids)].groupby("subject_id").head(2)
+        else:
+            matching_cxr = frontal_cxr[frontal_cxr["subject_id"].isin(subject_ids)].groupby("subject_id").head(2)
+
+        print(f"Found {len(matching_cxr)} matching CXR records for discharge windows.")
 
         for _, row in matching_cxr.iterrows():
             sub_str = str(row["subject_id"])
