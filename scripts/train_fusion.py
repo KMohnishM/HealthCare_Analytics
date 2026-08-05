@@ -35,6 +35,7 @@ log = get_logger(__name__)
 def load_branch_outputs(proc_dir: Path, split: str) -> dict:
     """
     Load pre-computed branch embeddings, scores, and confidences.
+    Falls back to zero-filled placeholders if a modality's files do not exist.
 
     Parameters
     ----------
@@ -49,14 +50,35 @@ def load_branch_outputs(proc_dir: Path, split: str) -> dict:
     'embed', 'score', 'confidence', 'available', 'label', 'hadm_id'.
     """
     out = {}
+    base_preds_file = proc_dir / f"tabular_preds_{split}.csv"
+    if not base_preds_file.exists():
+        raise FileNotFoundError(f"Base predictions not found: {base_preds_file}. Run train_tabular.py first.")
+    base_preds = pd.read_csv(base_preds_file)
+    n_samples = len(base_preds)
+    
     for mod in ["tabular", "ecg", "cxr"]:
-        preds = pd.read_csv(proc_dir / f"{mod}_preds_{split}.csv")
-        embed = np.load(proc_dir / f"{mod}_embed_{split}.npy")
+        preds_file = proc_dir / f"{mod}_preds_{split}.csv"
+        embed_file = proc_dir / f"{mod}_embed_{split}.npy"
+        
+        if preds_file.exists() and embed_file.exists():
+            preds = pd.read_csv(preds_file)
+            embed = np.load(embed_file)
+        else:
+            log.warning("Modality '%s' outputs not found. Using zero-filled placeholders.", mod)
+            preds = pd.DataFrame({
+                "hadm_id":    base_preds["hadm_id"],
+                "score":      np.zeros(n_samples),
+                "confidence": np.zeros(n_samples),
+                "available":  np.zeros(n_samples),
+                "label":      base_preds["label"]
+            })
+            embed = np.zeros((n_samples, 256), dtype="float32")
+            
         out[mod] = {
             "embed":      embed,
             "score":      preds["score"].values.astype("float32"),
             "confidence": preds["confidence"].values.astype("float32"),
-            "available":  preds.get("available", pd.Series(np.ones(len(preds)))).values.astype("float32"),
+            "available":  preds.get("available", pd.Series(np.ones(len(preds))) if "available" not in preds.columns else preds["available"]).values.astype("float32"),
             "label":      preds["label"].values.astype("float32"),
             "hadm_id":    preds["hadm_id"].values,
         }

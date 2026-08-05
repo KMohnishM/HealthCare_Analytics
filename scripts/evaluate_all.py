@@ -55,9 +55,24 @@ def main() -> None:
     log.info("Loading branch outputs for missingness sweep ...")
     branch_outputs = {}
     for mod in ["tabular", "ecg", "cxr"]:
-        preds = pd.read_csv(proc_dir / f"{mod}_preds_test.csv")
-        embed = np.load(proc_dir / f"{mod}_embed_test.npy")
-        avail = preds.get("available", pd.Series(np.ones(len(preds)))).values.astype("float32")
+        preds_file = proc_dir / f"{mod}_preds_test.csv"
+        embed_file = proc_dir / f"{mod}_embed_test.npy"
+        
+        if preds_file.exists() and embed_file.exists():
+            preds = pd.read_csv(preds_file)
+            embed = np.load(embed_file)
+        else:
+            log.warning("Modality '%s' outputs not found. Using zero-filled placeholders.", mod)
+            preds = pd.DataFrame({
+                "hadm_id":    fusion_preds["hadm_id"] if "hadm_id" in fusion_preds.columns else np.arange(len(fusion_preds)),
+                "score":      np.zeros(len(fusion_preds)),
+                "confidence": np.zeros(len(fusion_preds)),
+                "available":  np.zeros(len(fusion_preds)),
+                "label":      y_test
+            })
+            embed = np.zeros((len(fusion_preds), 256), dtype="float32")
+            
+        avail = preds.get("available", pd.Series(np.ones(len(preds))) if "available" not in preds.columns else preds["available"]).values.astype("float32")
         if mod == "tabular":
             avail = np.ones(len(preds), dtype="float32")  # always available
         branch_outputs[mod] = {

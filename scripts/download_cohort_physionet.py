@@ -2,10 +2,10 @@
 scripts/download_cohort_physionet.py
 ---------------------------------------------------------------------------------
 Downloads matching ECG records and CXR images directly from PhysioNet web servers
-using your PhysioNet login credentials. Bypasses Google Cloud completely.
+using cookie-based session login credentials. Bypasses Google Cloud completely.
 ---------------------------------------------------------------------------------
 Usage:
-    python scripts/download_cohort_physionet.py --cohort data/cohort/cohort.parquet
+    python scripts/download_cohort_physionet.py --cohort data/cohort.parquet
 """
 
 from __future__ import annotations
@@ -13,37 +13,80 @@ from __future__ import annotations
 import argparse
 import getpass
 import os
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 import pandas as pd
 import requests
 from tqdm import tqdm
 
-def download_physionet_file(url: str, dest_path: Path, auth: tuple[str, str]):
-    """Download a file from PhysioNet using HTTP Basic Auth."""
-    if dest_path.exists():
+def get_physionet_session(username: str, password: str) -> requests.Session:
+    """Establish a cookie-based session by logging into PhysioNet website."""
+    session = requests.Session()
+    login_url = "https://physionet.org/login/"
+    
+    # 1. Get the login page to extract Django CSRF token
+    r_get = session.get(login_url, timeout=15)
+    csrf_token = session.cookies.get("csrftoken")
+    if not csrf_token:
+        match = re.search(r'name="csrfmiddlewaretoken" value="([^"]+)"', r_get.text)
+        if match:
+            csrf_token = match.group(1)
+            
+    if not csrf_token:
+        raise PermissionError("Failed to extract CSRF token from PhysioNet login page.")
+
+    # 2. POST the login credentials
+    payload = {
+        "username": username,
+        "password": password,
+        "csrfmiddlewaretoken": csrf_token,
+        "next": "/"
+    }
+    headers = {
+        "Referer": login_url,
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    
+    r_post = session.post(login_url, data=payload, headers=headers, timeout=15)
+    if r_post.status_code != 200 or "sessionid" not in session.cookies:
+        raise PermissionError("PhysioNet authentication failed. Verify username and password.")
+        
+    return session
+
+def download_physionet_file(session: requests.Session, url: str, dest_path: Path, force: bool = False):
+    """Download a file from PhysioNet using a logged-in session."""
+    if dest_path.exists() and not force:
         return  # Skip if already exists
         
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     
+    headers = {
+        "Referer": "https://physionet.org/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    
     try:
-        response = requests.get(url, auth=auth, stream=True, timeout=30)
+        response = session.get(url, headers=headers, stream=True, timeout=30)
         if response.status_code == 200:
             with open(dest_path, "wb") as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
-        elif response.status_code == 401:
-            raise PermissionError("Authentication failed. Check your PhysioNet credentials.")
+        elif response.status_code == 403:
+            raise PermissionError(f"Access Denied (403) to {url}. Ensure you have signed the Data Use Agreement.")
         else:
-            print(f"\nFailed to download {url} (Status: {response.status_code})")
+            raise RuntimeError(f"Failed download (Status: {response.status_code})")
     except Exception as e:
         print(f"\nError downloading {url}: {e}")
 
 def main():
     parser = argparse.ArgumentParser(description="Download filtered MIMIC cohort directly from PhysioNet")
-    parser.add_argument("--cohort", required=True, help="Path to cohort.parquet (or cohort.csv)")
+    parser.add_argument("--cohort", required=True, help="Path to cohort.parquet")
     parser.add_argument("--out-dir", default="data", help="Output data directory")
     parser.add_argument("--max-workers", type=int, default=8, help="Number of parallel downloads")
+    parser.add_argument("--limit-subjects", type=int, default=None, help="Limit to a random subset of N subjects for fast local testing")
+    parser.add_argument("--username", default=None, help="PhysioNet Username")
+    parser.add_argument("--password", default=None, help="PhysioNet Password")
     args = parser.parse_args()
 
     cohort_path = Path(args.cohort)
@@ -57,14 +100,45 @@ def main():
     else:
         cohort_df = pd.read_csv(cohort_path)
         
-    subject_ids = set(cohort_df["subject_id"].unique())
+    if args.limit_subjects is not None:
+        import numpy as np
+        np.random.seed(42)
+        all_subjects = cohort_df["subject_id"].unique()
+        if len(all_subjects) > args.limit_subjects:
+            selected_subjects = np.random.choice(all_subjects, size=args.limit_subjects, replace=False)
+            subject_ids = set(selected_subjects)
+            # Filter and overwrite cohort Parquets in data/ directory
+            cohort_df = cohort_df[cohort_df["subject_id"].isin(subject_ids)].copy()
+            cohort_df.to_parquet(cohort_path, index=False)
+            
+            # Filter train/val/test splits as well if they exist alongside cohort_path
+            for name in ["train", "val", "test"]:
+                split_file = cohort_path.parent / f"{name}.parquet"
+                if split_file.exists():
+                    split_df = pd.read_parquet(split_file)
+                    split_df = split_df[split_df["subject_id"].isin(subject_ids)].copy()
+                    split_df.to_parquet(split_file, index=False)
+            print(f"Limiting to a random subset of {args.limit_subjects} subjects for local testing.")
+        else:
+            subject_ids = set(all_subjects)
+    else:
+        subject_ids = set(cohort_df["subject_id"].unique())
+        
     print(f"Cohort loaded: {len(cohort_df)} admissions for {len(subject_ids)} patients.")
 
     # Get PhysioNet Credentials
-    print("\n--- PhysioNet Authentication ---")
-    username = input("PhysioNet Username: ").strip()
-    password = getpass.getpass("PhysioNet Password: ")
-    auth = (username, password)
+    username = args.username
+    password = args.password
+    if username is None or password is None:
+        print("\n--- PhysioNet Authentication ---")
+        if username is None:
+            username = input("PhysioNet Username: ").strip()
+        if password is None:
+            password = getpass.getpass("PhysioNet Password: ")
+            
+    print("Establishing authenticated session with PhysioNet...")
+    session = get_physionet_session(username, password)
+    print("Authentication successful!")
 
     # 1. ── Download ECGs ──
     print("\n=== STEP 1: Querying ECGs ===")
@@ -73,7 +147,7 @@ def main():
     
     print("Fetching ECG record list index...")
     ecg_list_url = "https://physionet.org/files/mimic-iv-ecg/1.0/record_list.csv"
-    download_physionet_file(ecg_list_url, ecg_list_dest, auth)
+    download_physionet_file(session, ecg_list_url, ecg_list_dest, force=False)
     
     ecg_records_df = pd.read_csv(ecg_list_dest)
     matching_ecg = ecg_records_df[ecg_records_df["subject_id"].isin(subject_ids)]
@@ -91,24 +165,29 @@ def main():
     # 2. ── Download CXRs ──
     print("\n=== STEP 2: Querying CXRs ===")
     raw_cxr_dir = Path(args.out_dir) / "raw" / "mimic-cxr-jpg-2.1.0"
-    cxr_meta_dest = raw_cxr_dir / "mimic-cxr-2.1.0-metadata.csv.gz"
+    cxr_meta_dest = raw_cxr_dir / "mimic-cxr-2.0.0-metadata.csv.gz"
     
-    print("Fetching CXR metadata index...")
-    cxr_meta_url = "https://physionet.org/files/mimic-cxr-jpg/2.1.0/mimic-cxr-2.1.0-metadata.csv.gz"
-    download_physionet_file(cxr_meta_url, cxr_meta_dest, auth)
-    
-    cxr_meta_df = pd.read_csv(cxr_meta_dest, compression="gzip")
-    matching_cxr = cxr_meta_df[cxr_meta_df["subject_id"].isin(subject_ids)]
-    print(f"Found {len(matching_cxr)} matching CXR records.")
-
     cxr_tasks = []
-    for _, row in matching_cxr.iterrows():
-        sub_str = str(row["subject_id"])
-        prefix = f"p{sub_str[:2]}"
-        rel_path = f"files/{prefix}/p{sub_str}/s{row['study_id']}/{row['dicom_id']}.jpg"
-        url = f"https://physionet.org/files/mimic-cxr-jpg/2.1.0/{rel_path}"
-        dest = raw_cxr_dir / rel_path
-        cxr_tasks.append((url, dest))
+    print("Fetching CXR metadata index...")
+    # Note: PhysioNet uses version 2.0.0 in the metadata file name under the 2.1.0 directory
+    cxr_meta_url = "https://physionet.org/files/mimic-cxr-jpg/2.1.0/mimic-cxr-2.0.0-metadata.csv.gz"
+    
+    try:
+        download_physionet_file(session, cxr_meta_url, cxr_meta_dest, force=False)
+        cxr_meta_df = pd.read_csv(cxr_meta_dest, compression="gzip")
+        matching_cxr = cxr_meta_df[cxr_meta_df["subject_id"].isin(subject_ids)]
+        print(f"Found {len(matching_cxr)} matching CXR records.")
+
+        for _, row in matching_cxr.iterrows():
+            sub_str = str(row["subject_id"])
+            prefix = f"p{sub_str[:2]}"
+            rel_path = f"files/{prefix}/p{sub_str}/s{row['study_id']}/{row['dicom_id']}.jpg"
+            url = f"https://physionet.org/files/mimic-cxr-jpg/2.1.0/{rel_path}"
+            dest = raw_cxr_dir / rel_path
+            cxr_tasks.append((url, dest))
+    except Exception as e:
+        print(f"\n[WARNING] Could not access Chest X-Ray files: {e}")
+        print("Continuing with Tabular and ECG files only...")
 
     # Download Queue
     all_tasks = ecg_tasks + cxr_tasks
@@ -116,7 +195,7 @@ def main():
     
     with ThreadPoolExecutor(max_workers=args.max_workers) as executor:
         futures = {
-            executor.submit(download_physionet_file, url, dest, auth): (url, dest)
+            executor.submit(download_physionet_file, session, url, dest): (url, dest)
             for url, dest in all_tasks
         }
         

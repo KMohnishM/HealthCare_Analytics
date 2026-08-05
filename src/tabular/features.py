@@ -187,7 +187,9 @@ def extract_demographic_features(cohort: pd.DataFrame) -> pd.DataFrame:
             "ASIAN"    if "ASIAN" in r else
             "OTHER"
         ))
-        race_dummies = pd.get_dummies(simplified, prefix="race").astype(int)
+        categories = ["WHITE", "BLACK", "HISPANIC", "ASIAN", "OTHER"]
+        simplified = pd.Categorical(simplified, categories=categories)
+        race_dummies = pd.get_dummies(simplified, prefix="race", dtype=int)
         demo = demo.join(race_dummies)
 
     return demo

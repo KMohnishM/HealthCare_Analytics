@@ -103,10 +103,15 @@ def build_ecg_index(
     ecg_root = ecg_dir / "files"
 
     def build_path(row: pd.Series) -> str:
-        # MIMIC-IV-ECG filename field is the relative path including the .hea extension
-        # We strip the extension as WFDB rdrecord expects path without extension
-        rel = str(row.get("filename", "")).replace(".hea", "")
-        return str(ecg_root / rel)
+        # Support real PhysioNet 'path' column and dummy 'filename' column
+        if "path" in row and pd.notna(row["path"]):
+            rel = str(row["path"])
+            if rel.startswith("files/"):
+                rel = rel[len("files/"):]
+            return str(ecg_root / rel)
+        else:
+            rel = str(row.get("filename", "")).replace(".hea", "")
+            return str(ecg_root / rel)
 
     closest["ecg_record_path"] = closest.apply(build_path, axis=1)
 

@@ -8,21 +8,21 @@
 
 # ── Paths ────────────────────────────────────────────────────
 paths:
-  # Google Drive root (change to match your Drive structure)
-  base_dir: "/content/drive/MyDrive/HealthCare_Analytics"
+  # Local root
+  base_dir:         "."
 
-  # Raw MIMIC data (downloaded from PhysioNet)
-  mimic_iv_dir:     "/content/drive/MyDrive/MIMIC/mimic-iv-2.2"
-  mimic_ecg_dir:    "/content/drive/MyDrive/MIMIC/mimic-iv-ecg-1.0"
-  mimic_cxr_dir:    "/content/drive/MyDrive/MIMIC/mimic-cxr-jpg-2.0.0"
+  # Raw MIMIC data
+  mimic_iv_dir:     "data/raw/mimic-iv-2.2"
+  mimic_ecg_dir:    "data/raw/mimic-iv-ecg-1.0"
+  mimic_cxr_dir:    "data/raw/mimic-cxr-jpg-2.1.0"
 
   # Intermediate & processed outputs
-  cohort_dir:       "/content/drive/MyDrive/HealthCare_Analytics/data/cohort"
-  processed_dir:    "/content/drive/MyDrive/HealthCare_Analytics/data/processed"
-  models_dir:       "/content/drive/MyDrive/HealthCare_Analytics/outputs/models"
-  results_dir:      "/content/drive/MyDrive/HealthCare_Analytics/outputs/results"
-  figures_dir:      "/content/drive/MyDrive/HealthCare_Analytics/outputs/figures"
-  logs_dir:         "/content/drive/MyDrive/HealthCare_Analytics/outputs/logs"
+  cohort_dir:       "data"
+  processed_dir:    "data/processed"
+  models_dir:       "outputs/models"
+  results_dir:      "outputs/results"
+  figures_dir:      "outputs/figures"
+  logs_dir:         "outputs/logs"
 
 # ── Cohort ────────────────────────────────────────────────────
 cohort:
