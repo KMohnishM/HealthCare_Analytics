@@ -64,7 +64,9 @@ def init_mlflow(cfg: DictConfig, run_name: Optional[str] = None) -> str:
         Active MLflow run ID.
     """
     try:
+        import os
         import mlflow
+        os.environ["MLFLOW_ALLOW_FILE_STORE"] = "true"
 
         Path(cfg.mlflow.tracking_uri).mkdir(parents=True, exist_ok=True)
         mlflow.set_tracking_uri(cfg.mlflow.tracking_uri)
