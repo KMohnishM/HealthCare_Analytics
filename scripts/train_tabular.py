@@ -58,28 +58,41 @@ def main() -> None:
         len(train_df), len(val_df), len(test_df),
     )
 
-    # ── Load MIMIC tables (loaded once, shared across splits) ─────────────────
-    mimic_hosp = Path(cfg.paths.mimic_iv_dir) / "hosp"
-    mimic_icu  = Path(cfg.paths.mimic_iv_dir) / "icu"
+    # ── Check for pre-computed features (bypasses raw CSV load on cloud/Kaggle) ──
+    X_train_path = cohort_dir / "X_train.parquet"
+    if X_train_path.exists():
+        log.info("Found pre-computed feature parquets. Loading directly...")
+        X_train = pd.read_parquet(cohort_dir / "X_train.parquet")
+        X_val   = pd.read_parquet(cohort_dir / "X_val.parquet")
+        X_test  = pd.read_parquet(cohort_dir / "X_test.parquet")
+        
+        y_train = pd.read_parquet(cohort_dir / "y_train.parquet").iloc[:, 0].values
+        y_val   = pd.read_parquet(cohort_dir / "y_val.parquet").iloc[:, 0].values
+        y_test  = pd.read_parquet(cohort_dir / "y_test.parquet").iloc[:, 0].values
+        features = X_train.columns.tolist()
+    else:
+        # ── Load MIMIC tables (loaded once, shared across splits) ─────────────────
+        mimic_hosp = Path(cfg.paths.mimic_iv_dir) / "hosp"
+        mimic_icu  = Path(cfg.paths.mimic_iv_dir) / "icu"
 
-    log.info("Loading labevents ...")
-    lab_path = mimic_hosp / "labevents.csv.gz"
-    labevents = pd.read_csv(lab_path if lab_path.exists() else mimic_hosp / "labevents.csv",
-                            low_memory=False)
+        log.info("Loading labevents ...")
+        lab_path = mimic_hosp / "labevents.csv.gz"
+        labevents = pd.read_csv(lab_path if lab_path.exists() else mimic_hosp / "labevents.csv",
+                                low_memory=False)
 
-    log.info("Loading chartevents (selected columns only) ...")
-    ce_path = mimic_icu / "chartevents.csv.gz"
-    chartevents = pd.read_csv(
-        ce_path if ce_path.exists() else mimic_icu / "chartevents.csv",
-        usecols=["hadm_id", "itemid", "charttime", "valuenum"],
-        low_memory=False,
-    )
+        log.info("Loading chartevents (selected columns only) ...")
+        ce_path = mimic_icu / "chartevents.csv.gz"
+        chartevents = pd.read_csv(
+            ce_path if ce_path.exists() else mimic_icu / "chartevents.csv",
+            usecols=["hadm_id", "itemid", "charttime", "valuenum"],
+            low_memory=False,
+        )
 
-    # ── Build feature matrices ────────────────────────────────────────────────
-    log.info("Building feature matrices ...")
-    X_train, y_train, features = build_feature_matrix(train_df, cfg, labevents, chartevents)
-    X_val,   y_val,   _        = build_feature_matrix(val_df,   cfg, labevents, chartevents)
-    X_test,  y_test,  _        = build_feature_matrix(test_df,  cfg, labevents, chartevents)
+        # ── Build feature matrices ────────────────────────────────────────────────
+        log.info("Building feature matrices from raw CSVs...")
+        X_train, y_train, features = build_feature_matrix(train_df, cfg, labevents, chartevents)
+        X_val,   y_val,   _        = build_feature_matrix(val_df,   cfg, labevents, chartevents)
+        X_test,  y_test,  _        = build_feature_matrix(test_df,  cfg, labevents, chartevents)
 
     # ── Log Missingness (XGBoost handles NaN natively) ─────────────────────────
     miss_report = missingness_report(X_train)
