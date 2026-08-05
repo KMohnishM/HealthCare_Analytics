@@ -158,6 +158,8 @@ def load_and_preprocess_ecg(
         return None
 
     sig = sig[:, :12].T.astype(np.float32)  # -> (12, N)
+    # Clean NaN/Inf values that occur when leads are disconnected
+    sig = np.nan_to_num(sig, nan=0.0, posinf=0.0, neginf=0.0)
 
     fs    = rec.fs
     target_fs  = cfg.ecg.sample_rate   # 500 Hz
