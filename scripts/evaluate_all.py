@@ -88,7 +88,7 @@ def main() -> None:
     if gate_path.exists():
         tab_dim = branch_outputs["tabular"]["embed"].shape[1]
         gate_model = GatedFusionModel(cfg, tab_dim=tab_dim)
-        ckpt = torch.load(gate_path, map_location="cpu")
+        ckpt = torch.load(gate_path, map_location="cpu", weights_only=False)
         gate_model.load_state_dict(ckpt["model_state"])
         gate_model.eval()
         log.info("Loaded trained gate model from %s", gate_path)
