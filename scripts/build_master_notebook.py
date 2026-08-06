@@ -7,17 +7,18 @@ notebook = {
             "metadata": {},
             "source": [
                 "# 🫀 Multimodal Heart Failure Readmission Prediction Pipeline\n",
-                "**Master Kaggle End-to-End Execution Notebook**\n\n",
+                "**Master Kaggle End-to-End Execution Notebook (Full Automated Pipeline)**\n\n",
                 "This notebook executes the entire pipeline sequentially:\n",
                 "1. **Setup & Clone Repository**\n",
                 "2. **Copy Teammates Parquet Cohort Splits**\n",
-                "3. **Generate Fast Mock Clinical Tables** (Labs & Vitals)\n",
-                "4. **Train Tabular Branch** (XGBoost Bootstrap Ensemble)\n",
-                "5. **Train ECG Branch** (1D ResNet-34 with MC-Dropout)\n",
-                "6. **Train CXR Branch** (DenseNet-121 with Transfer Learning)\n",
-                "7. **Train Gated Fusion Layer** (Masked Softmax MLP Gating)\n",
-                "8. **Run Comprehensive Evaluations** (DCA, Baselines, Confusion Matrices, Fairness)\n",
-                "9. **Generate & Display Inline Dashboard**"
+                "3. **Download Raw Multimodal Data from PhysioNet** (ECG Waveforms & CXR Radiographs)\n",
+                "4. **Generate Fast Mock Clinical Tables** (Labs & Vitals)\n",
+                "5. **Train Tabular Branch** (XGBoost Bootstrap Ensemble)\n",
+                "6. **Train ECG Branch** (1D ResNet-34 with MC-Dropout)\n",
+                "7. **Train CXR Branch** (DenseNet-121 with Transfer Learning)\n",
+                "8. **Train Gated Fusion Layer** (Masked Softmax MLP Gating)\n",
+                "9. **Run Comprehensive Evaluations** (DCA, Baselines, Confusion Matrices, Fairness)\n",
+                "10. **Generate & Display Inline Dashboard**"
             ]
         },
         {
@@ -41,13 +42,14 @@ notebook = {
             "outputs": [],
             "source": [
                 "# ── Cell 2: Copy Teammate Parquet Cohort Data ──────────────────────────\n",
-                "import os, glob, shutil\n\n",
+                "import os\n",
                 "os.makedirs(\"data\", exist_ok=True)\n",
-                "for input_path in glob.glob(\"/kaggle/input/**/*.parquet\", recursive=True):\n",
-                "    filename = os.path.basename(input_path)\n",
-                "    dest_path = os.path.join(\"data\", filename)\n",
-                "    shutil.copy(input_path, dest_path)\n",
-                "    print(f\"Copied {filename} -> {dest_path}\")"
+                "print(\"Copying teammate's parquet splits...\")\n",
+                "!find /kaggle/input/datasets/mohnishkodukulla/teammates -name \"*.parquet\" -exec cp {} data/ \\; || find /kaggle/input/ -name \"*.parquet\" -exec cp {} data/ \\;\n",
+                "print(\"\\n--- Current Working Directory Contents ---\")\n",
+                "!ls -la\n",
+                "print(\"\\n--- Data Folder Contents ---\")\n",
+                "!ls -la data"
             ]
         },
         {
@@ -56,7 +58,18 @@ notebook = {
             "metadata": {},
             "outputs": [],
             "source": [
-                "# ── Cell 3: Generate Fast Mock Clinical Tables ──────────────────────────\n",
+                "# ── Cell 3: Download Raw Multimodal Data from PhysioNet ───────────────\n",
+                "# Downloads matching ECG waveforms & Chest X-Rays directly from PhysioNet\n",
+                "!python scripts/download_cohort_physionet.py --cohort data/cohort.parquet --username kmohnishm --password HereisMy2006Bye"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "outputs": [],
+            "source": [
+                "# ── Cell 4: Generate Fast Mock Clinical Tables ──────────────────────────\n",
                 "!python scripts/generate_mock_clinical_tables.py"
             ]
         },
@@ -66,7 +79,7 @@ notebook = {
             "metadata": {},
             "outputs": [],
             "source": [
-                "# ── Cell 4: Train Tabular Branch (XGBoost Ensemble) ───────────────────\n",
+                "# ── Cell 5: Train Tabular Branch (XGBoost Ensemble) ───────────────────\n",
                 "!python scripts/train_tabular.py"
             ]
         },
@@ -76,7 +89,7 @@ notebook = {
             "metadata": {},
             "outputs": [],
             "source": [
-                "# ── Cell 5: Train ECG Branch (1D ResNet-34) ───────────────────────────\n",
+                "# ── Cell 6: Train ECG Branch (1D ResNet-34) ───────────────────────────\n",
                 "!python scripts/train_ecg.py"
             ]
         },
@@ -86,7 +99,7 @@ notebook = {
             "metadata": {},
             "outputs": [],
             "source": [
-                "# ── Cell 6: Train CXR Branch (DenseNet-121) ───────────────────────────\n",
+                "# ── Cell 7: Train CXR Branch (DenseNet-121) ───────────────────────────\n",
                 "!python scripts/train_cxr.py"
             ]
         },
@@ -96,7 +109,7 @@ notebook = {
             "metadata": {},
             "outputs": [],
             "source": [
-                "# ── Cell 7: Train Gated Fusion Model (MLP Gating Head) ─────────────────\n",
+                "# ── Cell 8: Train Gated Fusion Model (MLP Gating Head) ─────────────────\n",
                 "!python scripts/train_fusion.py"
             ]
         },
@@ -106,7 +119,7 @@ notebook = {
             "metadata": {},
             "outputs": [],
             "source": [
-                "# ── Cell 8: Comprehensive Evaluation (DCA, Baselines, Confusion Matrix) ──\n",
+                "# ── Cell 9: Comprehensive Evaluation (DCA, Baselines, Confusion Matrix) ──\n",
                 "!python scripts/evaluate_all.py"
             ]
         },
@@ -116,7 +129,7 @@ notebook = {
             "metadata": {},
             "outputs": [],
             "source": [
-                "# ── Cell 9: Generate Interactive Dashboard Notebook ────────────────────\n",
+                "# ── Cell 10: Generate Interactive Dashboard Notebook ───────────────────\n",
                 "!python scripts/generate_notebook.py"
             ]
         },
@@ -126,7 +139,7 @@ notebook = {
             "metadata": {},
             "outputs": [],
             "source": [
-                "# ── Cell 10: Display All Visual Results Inline in Kaggle ───────────────\n",
+                "# ── Cell 11: Display All Visual Results Inline in Kaggle ───────────────\n",
                 "import os\n",
                 "from IPython.display import Image, display, HTML\n\n",
                 "figures = [\n",
