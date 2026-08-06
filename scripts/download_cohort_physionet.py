@@ -85,6 +85,7 @@ def main():
     parser.add_argument("--out-dir", default="data", help="Output data directory")
     parser.add_argument("--max-workers", type=int, default=8, help="Number of parallel downloads")
     parser.add_argument("--limit-subjects", type=int, default=None, help="Limit to a random subset of N subjects for fast local testing")
+    parser.add_argument("--limit-downloads", type=int, default=None, help="Limit the number of new files to download in this run")
     parser.add_argument("--username", default=None, help="PhysioNet Username")
     parser.add_argument("--password", default=None, help="PhysioNet Password")
     args = parser.parse_args()
@@ -227,12 +228,30 @@ def main():
 
     # Download Queue
     all_tasks = ecg_tasks + cxr_tasks
-    print(f"\nQueueing {len(all_tasks)} files for download...")
+    
+    # Filter out tasks that are already downloaded
+    pending_tasks = []
+    for url, dest in all_tasks:
+        if not dest.exists():
+            pending_tasks.append((url, dest))
+            
+    print(f"\nTotal expected files: {len(all_tasks)}")
+    print(f"Already downloaded on disk: {len(all_tasks) - len(pending_tasks)}")
+    print(f"Pending download: {len(pending_tasks)}")
+    
+    if args.limit_downloads is not None and len(pending_tasks) > args.limit_downloads:
+        print(f"Limiting this run to download the first {args.limit_downloads} pending files...")
+        pending_tasks = pending_tasks[:args.limit_downloads]
+        
+    print(f"\nQueueing {len(pending_tasks)} files for download...")
+    if len(pending_tasks) == 0:
+        print("All matching cohort files are already downloaded!")
+        return
     
     with ThreadPoolExecutor(max_workers=args.max_workers) as executor:
         futures = {
             executor.submit(download_physionet_file, session, url, dest): (url, dest)
-            for url, dest in all_tasks
+            for url, dest in pending_tasks
         }
         
         for _ in tqdm(as_completed(futures), total=len(futures), desc="Downloading"):
