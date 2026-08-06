@@ -110,18 +110,48 @@ def main() -> None:
     # ── 2. Clinical Baselines Comparison ─────────────────────────────────────
     log.info("\n%s\nBASELINE COMPARISON\n%s", "=" * 60, "=" * 60)
 
-    baseline_preds = {}
-    for score_col in ["lace_prob", "hospital_prob"]:
-        if score_col in fusion_preds.columns:
-            baseline_preds[score_col.replace("_prob", "")] = fusion_preds[score_col].values
-
     all_predictions = {
         "tabular_only":  branch_outputs["tabular"]["score"],
         "fixed_weight":  fusion_preds["fixed_weight_score"].values,
-        **baseline_preds,
     }
     if "learned_gate_score" in fusion_preds.columns:
         all_predictions["learned_gate"] = fusion_preds["learned_gate_score"].values
+
+    # Compute LACE and HOSPITAL scores dynamically on the fly
+    log.info("Computing LACE and HOSPITAL baseline scores dynamically for test cohort...")
+    hosp_dir = Path(cfg.paths.mimic_iv_dir) / "hosp"
+    
+    # Load diagnoses_icd
+    diag_path = hosp_dir / "diagnoses_icd.csv"
+    if not diag_path.exists():
+        diag_path = hosp_dir / "diagnoses_icd.csv.gz"
+    if diag_path.exists():
+        diagnoses_icd = pd.read_csv(diag_path)
+    else:
+        diagnoses_icd = pd.DataFrame(columns=["hadm_id", "icd_code", "icd_version"])
+        
+    # Load labevents
+    lab_path = hosp_dir / "labevents.csv"
+    if not lab_path.exists():
+        lab_path = hosp_dir / "labevents.csv.gz"
+    if lab_path.exists():
+        labevents = pd.read_csv(lab_path)
+    else:
+        labevents = pd.DataFrame(columns=["hadm_id", "itemid", "charttime", "valuenum"])
+
+    try:
+        from src.baselines.lace import compute_lace_scores
+        lace_test = compute_lace_scores(test_df, diagnoses_icd)
+        all_predictions["LACE"] = lace_test["lace_prob"].values
+    except Exception as e:
+        log.warning("Could not compute LACE baseline score: %s", e)
+
+    try:
+        from src.baselines.hospital_score import compute_hospital_scores
+        hosp_test = compute_hospital_scores(test_df, labevents)
+        all_predictions["HOSPITAL"] = hosp_test["hospital_prob"].values
+    except Exception as e:
+        log.warning("Could not compute HOSPITAL baseline score: %s", e)
 
     comparison_records = []
     for name, probs in all_predictions.items():

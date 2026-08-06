@@ -33,6 +33,7 @@ def main():
         50983: (130, 145),    # Sodium
         50971: (3.0, 6.0),    # Potassium
         51301: (4.0, 20.0),   # WBC
+        51222: (8.0, 16.0),   # Hemoglobin (HGB)
     }
     
     for hadm in hadm_ids:
