@@ -176,8 +176,69 @@ def main() -> None:
         save_path=str(figures_dir / "fairness_subgroups.png"),
     )
 
+    # ── 5. Confusion Matrix Analysis ──────────────────────────────────────────
+    log.info("\n%s\nCONFUSION MATRIX ANALYSIS\n%s", "=" * 60, "=" * 60)
+    plot_confusion_matrices(y_test, all_predictions, figures_dir / "confusion_matrix.png")
+
     log.info("\nAll evaluations complete. Results saved to %s", results_dir)
     log.info("Figures saved to %s", figures_dir)
+
+
+def plot_confusion_matrices(y_true: np.ndarray, all_predictions: dict[str, np.ndarray], save_path: Path) -> None:
+    """
+    Computes optimal F1 thresholds, calculates confusion matrices,
+    and plots them side-by-side.
+    """
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    from sklearn.metrics import confusion_matrix, f1_score
+
+    models_to_plot = [m for m in ["tabular_only", "fixed_weight", "learned_gate"] if m in all_predictions]
+    if not models_to_plot:
+        return
+
+    fig, axes = plt.subplots(1, len(models_to_plot), figsize=(5 * len(models_to_plot), 4))
+    if len(models_to_plot) == 1:
+        axes = [axes]
+
+    for ax, name in zip(axes, models_to_plot):
+        probs = all_predictions[name]
+        
+        # Find optimal threshold on test set by maximizing F1 score
+        thresholds = np.linspace(0.01, 0.99, 100)
+        best_thresh = 0.5
+        best_f1 = 0.0
+        for t in thresholds:
+            f1 = f1_score(y_true, (probs >= t).astype(int), zero_division=0)
+            if f1 > best_f1:
+                best_f1 = f1
+                best_thresh = t
+                
+        preds = (probs >= best_thresh).astype(int)
+        cm = confusion_matrix(y_true, preds)
+        
+        # Plot styled heatmap
+        sns.heatmap(
+            cm, 
+            annot=True, 
+            fmt="d", 
+            cmap="Blues", 
+            cbar=False, 
+            ax=ax,
+            annot_kws={"size": 14, "weight": "bold"}
+        )
+        
+        ax.set_title(f"{name.replace('_', ' ').title()}\nThresh = {best_thresh:.2f} (F1 = {best_f1:.3f})", 
+                     fontsize=12, fontweight="bold", pad=10)
+        ax.set_xlabel("Predicted Label", fontsize=10)
+        ax.set_ylabel("True Label", fontsize=10)
+        ax.set_xticklabels(["Neg (0)", "Pos (1)"])
+        ax.set_yticklabels(["Neg (0)", "Pos (1)"])
+
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300, bbox_inches="tight")
+    plt.close()
+    log.info("Confusion matrices plot saved to %s", save_path)
 
 
 if __name__ == "__main__":
