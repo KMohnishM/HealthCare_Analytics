@@ -28,6 +28,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import numpy as np
+import pandas as pd
 import streamlit as st
 
 from src.demo.case_studies import CASE_STUDIES, get_case_study_display
@@ -142,6 +143,47 @@ def compute_demo_fusion(
             num += c * s
             den += c
     return num / den if den > 0 else 0.5
+
+
+def run_live_tabular_inference(
+    age: float,
+    gender: str,
+    los_days: float,
+    via_ed: bool,
+    prior_admits_12m: int,
+    ed_visits_6m: int,
+) -> tuple[float, float]:
+    """Runs live XGBoost ensemble inference on the manual input features."""
+    import pickle
+    try:
+        model_path = Path("outputs/models/tabular_ensemble.pkl")
+        if not model_path.exists():
+            return 0.42, 0.85
+            
+        with open(model_path, "rb") as f:
+            model = pickle.load(f)
+            
+        is_male = 1 if gender == "Male" else 0
+        X_df = pd.DataFrame([{
+            "age": float(age),
+            "is_male": int(is_male),
+            "race_WHITE": 1,
+            "race_BLACK": 0,
+            "race_HISPANIC": 0,
+            "race_ASIAN": 0,
+            "race_OTHER": 0,
+            "los_days": float(los_days),
+            "via_ed": int(via_ed),
+            "prior_admits_12m": int(prior_admits_12m),
+            "ed_visits_6m": int(ed_visits_6m),
+        }])
+        
+        # Align with model columns
+        X_df = X_df[model.feature_names]
+        result = model.predict(X_df)
+        return float(result["score"][0]), float(result["confidence"][0])
+    except Exception:
+        return 0.42, 0.85
 
 
 def risk_tier(prob: float) -> tuple[str, str]:
@@ -269,10 +311,37 @@ with tab_input:
     with col3:
         st.markdown("**📈 Branch Score Overrides**")
         st.caption("Pre-computed branch risk scores (from trained models):")
-        tab_score = st.slider("📋 Tabular Risk Score", 0.0, 1.0,
-                               value=float(case_data.get("tab_score", 0.42)) if case_data else 0.42)
-        tab_conf  = st.slider("📋 Tabular Confidence",  0.0, 1.0,
-                               value=float(case_data.get("tab_conf",  0.85)) if case_data else 0.85)
+        
+        # Calculate live prediction from the input fields
+        live_tab_score, live_tab_conf = run_live_tabular_inference(
+            age=age,
+            gender=gender,
+            los_days=los_days,
+            via_ed=via_ed,
+            prior_admits_12m=prior_adm,
+            ed_visits_6m=ed_6m
+        )
+
+        default_tab_score = live_tab_score if (not case_data or selected_case == "Enter Manual Data") else float(case_data.get("tab_score", 0.42))
+        default_tab_conf  = live_tab_conf  if (not case_data or selected_case == "Enter Manual Data") else float(case_data.get("tab_conf", 0.85))
+
+        # Check if user modified input fields from the loaded case study defaults
+        if case_data:
+            inputs_changed = (
+                age != int(case_data["age"]) or
+                gender != ("Male" if case_data.get("gender", "M") == "M" else "Female") or
+                los_days != float(case_data["los_days"]) or
+                via_ed != bool(case_data.get("via_ed", True)) or
+                prior_adm != int(case_data.get("prior_admits_12m", 2)) or
+                ed_6m != int(case_data.get("ed_visits_6m", 1))
+            )
+            if inputs_changed:
+                default_tab_score = live_tab_score
+                default_tab_conf  = live_tab_conf
+                st.info("🔄 Live Tabular Model recalculated predictions based on your edited inputs.")
+
+        tab_score = st.slider("📋 Tabular Risk Score", 0.0, 1.0, value=default_tab_score)
+        tab_conf  = st.slider("📋 Tabular Confidence",  0.0, 1.0, value=default_tab_conf)
 
         ecg_score = st.slider("📈 ECG Risk Score",       0.0, 1.0,
                                value=float(case_data.get("ecg_score", 0.55)) if case_data else 0.55,
