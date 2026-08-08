@@ -114,10 +114,10 @@ class TabularEnsemble:
             n_pos, n_neg, scale_pos_weight,
         )
 
-        X_arr  = X_train.values
-        y_arr  = y_train.values
-        Xv_arr = X_val.values
-        yv_arr = y_val.values
+        X_arr  = X_train.values if hasattr(X_train, "values") else np.asarray(X_train)
+        y_arr  = y_train.values if hasattr(y_train, "values") else np.asarray(y_train)
+        Xv_arr = X_val.values if hasattr(X_val, "values") else np.asarray(X_val)
+        yv_arr = y_val.values if hasattr(y_val, "values") else np.asarray(y_val)
 
         n_bootstrap = int(self.cfg.tabular.xgb.n_bootstrap)
         self.models = []

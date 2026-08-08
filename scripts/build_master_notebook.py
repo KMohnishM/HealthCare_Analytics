@@ -7,12 +7,12 @@ notebook = {
             "metadata": {},
             "source": [
                 "# 🫀 Multimodal Heart Failure Readmission Prediction Pipeline\n",
-                "**Master Kaggle End-to-End Execution Notebook (Full Automated Pipeline)**\n\n",
-                "This notebook executes the entire pipeline sequentially:\n",
-                "1. **Setup & Clone Repository**\n",
-                "2. **Copy Teammates Parquet Cohort Splits**\n",
-                "3. **Download Raw Multimodal Data from PhysioNet** (ECG Waveforms & CXR Radiographs)\n",
-                "4. **Generate Fast Mock Clinical Tables** (Labs & Vitals)\n",
+                "**Master Kaggle Execution Notebook (Robust Dataset & Pip Package Setup)**\n\n",
+                "This notebook executes the entire pipeline sequentially:\n\n",
+                "1. **Install Required Python Packages** (`timm`, `wfdb`, `xgboost`, `shap`, `dcurves`)\n",
+                "2. **Setup & Clone Repository**\n",
+                "3. **Copy All Datasets from Kaggle Input** (Parquets, ECGs, CXRs)\n",
+                "4. **Fast Resume Download Check** (Skips automatically if uploaded dataset contains raw files)\n",
                 "5. **Train Tabular Branch** (XGBoost Bootstrap Ensemble)\n",
                 "6. **Train ECG Branch** (1D ResNet-34 with MC-Dropout)\n",
                 "7. **Train CXR Branch** (DenseNet-121 with Transfer Learning)\n",
@@ -27,7 +27,17 @@ notebook = {
             "metadata": {},
             "outputs": [],
             "source": [
-                "# ── Cell 1: Environment Setup & Clone ──────────────────────────────────\n",
+                "# ── Cell 1: Install Required Python Packages ────────────────────────────\n",
+                "!pip install -q timm wfdb xgboost shap dcurves pyarrow"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "outputs": [],
+            "source": [
+                "# ── Cell 2: Environment Setup & Clone ──────────────────────────────────\n",
                 "import os, shutil\n\n",
                 "if not os.path.exists(\"HealthCare_Analytics\"):\n",
                 "    !git clone https://github.com/KMohnishM/HealthCare_Analytics.git\n\n",
@@ -41,13 +51,14 @@ notebook = {
             "metadata": {},
             "outputs": [],
             "source": [
-                "# ── Cell 2: Copy Teammate Parquet Cohort Data ──────────────────────────\n",
+                "# ── Cell 3: Copy All Datasets from Kaggle Input ─────────────────────────\n",
                 "import os\n",
                 "os.makedirs(\"data\", exist_ok=True)\n",
-                "print(\"Copying teammate's parquet splits...\")\n",
-                "!find /kaggle/input/datasets/mohnishkodukulla/teammates -name \"*.parquet\" -exec cp {} data/ \\; || find /kaggle/input/ -name \"*.parquet\" -exec cp {} data/ \\;\n",
-                "print(\"\\n--- Current Working Directory Contents ---\")\n",
-                "!ls -la\n",
+                "print(\"Copying teammate's parquet splits, feature matrices, and uploaded raw ECG/CXR files...\")\n",
+                "!find /kaggle/input/ -name \"*.parquet\" -exec cp {} data/ \\; 2>/dev/null || true\n",
+                "!find /kaggle/input/ -name \"*.csv\" -exec cp {} data/ \\; 2>/dev/null || true\n",
+                "!mkdir -p data/raw\n",
+                "!cp -r /kaggle/input/**/raw/* data/raw/ 2>/dev/null || cp -r /kaggle/input/*/raw/* data/raw/ 2>/dev/null || true\n",
                 "print(\"\\n--- Data Folder Contents ---\")\n",
                 "!ls -la data"
             ]
@@ -58,8 +69,8 @@ notebook = {
             "metadata": {},
             "outputs": [],
             "source": [
-                "# ── Cell 3: Download Raw Multimodal Data from PhysioNet ───────────────\n",
-                "# Downloads matching ECG waveforms & Chest X-Rays directly from PhysioNet\n",
+                "# ── Cell 4: Fast Resume Download Check ─────────────────────────────────\n",
+                "# If raw files are already mounted from your uploaded Kaggle Dataset, this skips in 1 second!\n",
                 "!python scripts/download_cohort_physionet.py --cohort data/cohort.parquet --username kmohnishm --password HereisMy2006Bye"
             ]
         },
@@ -69,17 +80,8 @@ notebook = {
             "metadata": {},
             "outputs": [],
             "source": [
-                "# ── Cell 4: Generate Fast Mock Clinical Tables ──────────────────────────\n",
-                "!python scripts/generate_mock_clinical_tables.py"
-            ]
-        },
-        {
-            "cell_type": "code",
-            "execution_count": None,
-            "metadata": {},
-            "outputs": [],
-            "source": [
                 "# ── Cell 5: Train Tabular Branch (XGBoost Ensemble) ───────────────────\n",
+                "# Loads pre-computed X_train.parquet, X_val.parquet, X_test.parquet directly\n",
                 "!python scripts/train_tabular.py"
             ]
         },
@@ -170,4 +172,4 @@ notebook = {
 with open("master_kaggle_pipeline.ipynb", "w", encoding="utf-8") as f:
     json.dump(notebook, f, indent=2)
 
-print("Successfully created master_kaggle_pipeline.ipynb!")
+print("Successfully created master_kaggle_pipeline.ipynb with pip install & dataset mounting!")

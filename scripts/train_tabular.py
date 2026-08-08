@@ -111,8 +111,8 @@ def main() -> None:
     # We copy the config overrides to avoid modifying the global config
     for fold, (train_idx, val_idx) in enumerate(kf.split(X_train)):
         log.info(f"--- Fold {fold + 1}/5 ---")
-        X_tr_fold, y_tr_fold = X_train.iloc[train_idx], y_train.iloc[train_idx]
-        X_va_fold, y_va_fold = X_train.iloc[val_idx], y_train.iloc[val_idx]
+        X_tr_fold, y_tr_fold = X_train.iloc[train_idx], y_train[train_idx]
+        X_va_fold, y_va_fold = X_train.iloc[val_idx], y_train[val_idx]
         
         fold_model = TabularEnsemble(cfg)
         fold_model.fit(X_tr_fold, y_tr_fold, X_va_fold, y_va_fold)
@@ -132,7 +132,8 @@ def main() -> None:
     # ── Evaluate ──────────────────────────────────────────────────────────────
     log.info("Evaluating final model on test set ...")
     test_result = model.predict(X_test)
-    metrics = evaluate_all(y_test.values, test_result["score"])
+    y_test_arr = y_test.values if hasattr(y_test, "values") else np.asarray(y_test)
+    metrics = evaluate_all(y_test_arr, test_result["score"])
 
     log.info("=" * 60)
     log.info("TEST SET RESULTS — Tabular Branch (XGBoost Ensemble)")
@@ -167,7 +168,7 @@ def main() -> None:
             "score": oof_scores,
             "confidence": oof_confs,
             "std": oof_stds,
-            "label": y_train.values,
+            "label": y_train.values if hasattr(y_train, "values") else np.asarray(y_train),
             "embed": oof_embeds
         },
         "val": {
@@ -175,7 +176,7 @@ def main() -> None:
             "score": val_pred["score"],
             "confidence": val_pred["confidence"],
             "std": val_pred["std"],
-            "label": y_val.values,
+            "label": y_val.values if hasattr(y_val, "values") else np.asarray(y_val),
             "embed": X_val.values
         },
         "test": {
@@ -183,7 +184,7 @@ def main() -> None:
             "score": test_pred["score"],
             "confidence": test_pred["confidence"],
             "std": test_pred["std"],
-            "label": y_test.values,
+            "label": y_test.values if hasattr(y_test, "values") else np.asarray(y_test),
             "embed": X_test.values
         }
     }
