@@ -157,9 +157,12 @@ def build_cxr_index(
 
     closest["cxr_path"] = closest.apply(build_cxr_path, axis=1)
 
+    # Filter out CXR image files that do not exist on disk
+    closest = closest[closest["cxr_path"].apply(lambda p: Path(p).exists())].copy()
+
     coverage = 100 * len(closest) / len(cohort)
     log.info(
-        "CXR index built: %d/%d admissions have a qualifying CXR (%.1f%%)",
+        "CXR index built: %d/%d admissions have a qualifying CXR present on disk (%.1f%%)",
         len(closest), len(cohort), coverage,
     )
     return closest[["hadm_id", "cxr_path", "study_datetime", "hours_before_discharge"]]

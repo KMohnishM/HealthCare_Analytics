@@ -114,7 +114,7 @@ def fairness_report(
     report_df = pd.DataFrame(records)
 
     # Log the largest AUROC gap
-    model_rows = report_df[report_df["group_var"] != "overall"]
+    model_rows = report_df[(report_df["group_var"] != "overall") & report_df["AUROC_gap"].notna()]
     if len(model_rows) > 0:
         worst = model_rows.loc[model_rows["AUROC_gap"].abs().idxmax()]
         log.info(

@@ -115,9 +115,16 @@ def build_ecg_index(
 
     closest["ecg_record_path"] = closest.apply(build_path, axis=1)
 
+    # Filter out files that do not exist on disk
+    def ecg_exists(p_str: str) -> bool:
+        p = Path(p_str)
+        return Path(str(p) + ".hea").exists()
+
+    closest = closest[closest["ecg_record_path"].apply(ecg_exists)].copy()
+
     coverage = 100 * len(closest) / len(cohort)
     log.info(
-        "ECG index built: %d/%d admissions have a qualifying ECG (%.1f%%)",
+        "ECG index built: %d/%d admissions have a qualifying ECG present on disk (%.1f%%)",
         len(closest), len(cohort), coverage,
     )
     return closest[["hadm_id", "ecg_record_path", "ecg_time", "hours_before_discharge"]]
