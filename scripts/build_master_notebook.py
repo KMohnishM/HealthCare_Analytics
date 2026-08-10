@@ -170,24 +170,30 @@ notebook = {
             "source": [
                 "# ── Cell 12: Auto-Push EVERYTHING (git add .) to a New Versioned Branch ─\n",
                 "import datetime, os\n\n",
-                "# 1. Create a unique versioned branch name with timestamp\n",
+                "# 1. Fetch GitHub Token securely from Kaggle Secrets (Add-ons -> Secrets -> GITHUB_TOKEN)\n",
+                "try:\n",
+                "    from kaggle_secrets import UserSecretsClient\n",
+                "    user_secrets = UserSecretsClient()\n",
+                "    GITHUB_TOKEN = user_secrets.get_secret(\"GITHUB_TOKEN\")\n",
+                "except Exception:\n",
+                "    GITHUB_TOKEN = os.environ.get(\"GITHUB_TOKEN\", \"\")\n\n",
+                "# 2. Create a unique versioned branch name with timestamp\n",
                 "version_tag = datetime.datetime.now().strftime('run-v%Y%m%d-%H%M%S')\n",
                 "print(f'Creating and pushing to new version branch: {version_tag}')\n\n",
-                "# 2. Configure Git Identity\n",
+                "# 3. Configure Git Identity\n",
                 "!git config user.name 'KMohnishM'\n",
                 "!git config user.email 'kmohnishm@gmail.com'\n\n",
-                "# 3. Create & Checkout New Branch\n",
+                "# 4. Create & Checkout New Branch\n",
                 "!git checkout -b {version_tag}\n\n",
-                "# 4. Stage EVERYTHING in working directory\n",
+                "# 5. Stage EVERYTHING in working directory\n",
                 "!git add .\n",
                 "!git commit -m f'feat(kaggle-run): full automated output push for version {version_tag}'\n\n",
-                "# 5. Push to GitHub (Set your GitHub PAT Token below or in Kaggle Secrets)\n",
-                "GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN', 'YOUR_GITHUB_TOKEN_HERE')\n\n",
-                "if GITHUB_TOKEN != 'YOUR_GITHUB_TOKEN_HERE':\n",
+                "# 6. Push new version branch to GitHub\n",
+                "if GITHUB_TOKEN:\n",
                 "    !git push https://{GITHUB_TOKEN}@github.com/KMohnishM/HealthCare_Analytics.git {version_tag}\n",
                 "    print(f'\\n🎉 Successfully pushed branch \"{version_tag}\" with all files to GitHub!')\n",
                 "else:\n",
-                "    print('\\n⚠️ Please replace YOUR_GITHUB_TOKEN_HERE with your actual GitHub PAT token to enable auto-push!')"
+                "    print('\\n⚠️ GITHUB_TOKEN secret not found! Please add label GITHUB_TOKEN under Kaggle Add-ons -> Secrets.')"
             ]
         }
     ],
@@ -201,4 +207,4 @@ notebook = {
 with open("master_kaggle_pipeline.ipynb", "w", encoding="utf-8") as f:
     json.dump(notebook, f, indent=2)
 
-print("Successfully created master_kaggle_pipeline.ipynb with version branch auto-push!")
+print("Successfully created master_kaggle_pipeline.ipynb with Kaggle Secrets auto-push!")
