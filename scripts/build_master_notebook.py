@@ -56,11 +56,11 @@ notebook = {
                 "# ── Cell 3: Copy All Datasets from Kaggle Input ─────────────────────────\n",
                 "import os\n",
                 "os.makedirs(\"data\", exist_ok=True)\n",
+                "os.makedirs(\"data/raw\", exist_ok=True)\n",
                 "print(\"Copying teammate's parquet splits, feature matrices, and uploaded raw ECG/CXR files...\")\n",
-                "!find /kaggle/input/ -name \"*.parquet\" -exec cp {} data/ \\; 2>/dev/null || true\n",
-                "!find /kaggle/input/ -name \"*.csv\" -exec cp {} data/ \\; 2>/dev/null || true\n",
-                "!mkdir -p data/raw\n",
-                "!cp -r /kaggle/input/**/raw/* data/raw/ 2>/dev/null || cp -r /kaggle/input/*/raw/* data/raw/ 2>/dev/null || true\n",
+                "!find /kaggle/input/datasets/mohnishkodukulla/teammates -name \"*.parquet\" -exec cp {} data/ \\; 2>/dev/null || find /kaggle/input/ -name \"*.parquet\" -exec cp {} data/ \\; 2>/dev/null || true\n",
+                "!find /kaggle/input/ -type d -name \"mimic-iv-ecg-1.0\" -exec cp -r {} data/raw/ \\; 2>/dev/null || true\n",
+                "!find /kaggle/input/ -type d -name \"mimic-cxr-jpg-2.1.0\" -exec cp -r {} data/raw/ \\; 2>/dev/null || true\n",
                 "print(\"\\n--- Data Folder Contents ---\")\n",
                 "!ls -la data"
             ]
@@ -207,4 +207,4 @@ notebook = {
 with open("master_kaggle_pipeline.ipynb", "w", encoding="utf-8") as f:
     json.dump(notebook, f, indent=2)
 
-print("Successfully created master_kaggle_pipeline.ipynb with Kaggle Secrets auto-push!")
+print("Successfully created master_kaggle_pipeline.ipynb with refined Cell 3 paths!")
