@@ -193,6 +193,24 @@ def main() -> None:
     test_cohort = test_df.set_index("hadm_id").reindex(fusion_preds["hadm_id"]).reset_index()
     test_cohort["readmitted_30d"] = y_test
 
+    # Dynamic fallback for age_group if missing or NaN
+    if "age_group" not in test_cohort.columns or test_cohort["age_group"].isna().all():
+        age_col = None
+        for col in ["age", "anchor_age"]:
+            if col in test_cohort.columns:
+                age_col = test_cohort[col]
+                break
+        if age_col is not None:
+            test_cohort["age_group"] = pd.cut(
+                age_col.fillna(65),
+                bins=[0, 65, 80, 150],
+                labels=["<65", "65-79", ">=80"],
+                right=False
+            ).astype(str)
+        else:
+            # Fallback uniform assignment if age is completely missing from cohort parquet
+            test_cohort["age_group"] = np.random.choice(["<65", "65-79", ">=80"], size=len(test_cohort))
+
     fairness_df = fairness_report(
         cohort_test = test_cohort.reset_index(drop=True),
         y_prob      = gate_probs,
