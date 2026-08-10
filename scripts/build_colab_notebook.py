@@ -12,13 +12,13 @@ notebook = {
                 "1. **Mount Google Drive** & Create Backup Directory\n",
                 "2. **Install Required Python Packages** (`timm`, `wfdb`, `xgboost`, `torchxrayvision`, `shap`, `dcurves`)\n",
                 "3. **Setup & Clone Repository**\n",
-                "4. **Copy Data / PhysioNet Download**\n",
+                "4. **Copy Data / PhysioNet Download & Immediate Drive Backup**\n",
                 "5. **Train Tabular Branch** (XGBoost Ensemble with Trajectories & Ratios)\n",
                 "6. **Train ECG Branch** (1D ResNet-34 with Lead Attention)\n",
                 "7. **Train CXR Branch** (TorchXRayVision DenseNet-121 Medical Pretraining)\n",
                 "8. **Train Gated Fusion Layer** (Focal Loss & Gated MLP)\n",
                 "9. **Run Comprehensive Evaluation Suite** (DCA, Baselines, Confusion Matrices, Fairness)\n",
-                "10. **Auto-Backup Outputs to Google Drive** & Render Dashboard Inline"
+                "10. **Auto-Backup Outputs & Models to Google Drive** & Render Dashboard Inline"
             ]
         },
         {
@@ -69,20 +69,27 @@ notebook = {
             "metadata": {},
             "outputs": [],
             "source": [
-                "# ── Cell 4: Copy Existing Data from Drive or Download from PhysioNet ───\n",
+                "# ── Cell 4: Restore Data from Drive or Download from PhysioNet ─────────\n",
                 "import os\n",
                 "os.makedirs('data', exist_ok=True)\n",
                 "DRIVE_DIR = '/content/drive/MyDrive/HealthCare_Analytics_Backup'\n",
                 "\n",
                 "if os.path.exists(f'{DRIVE_DIR}/data'):\n",
-                "    print('Copying existing dataset from Google Drive...')\n",
+                "    print('Restoring existing raw dataset and parquets from Google Drive...')\n",
                 "    !cp -r {DRIVE_DIR}/data/* data/ 2>/dev/null || true\n",
                 "\n",
                 "print('\\n--- Current Data Directory Contents ---')\n",
                 "!ls -la data\n",
                 "\n",
                 "print('\\nChecking / downloading PhysioNet cohort files...')\n",
-                "!python scripts/download_cohort_physionet.py --cohort data/cohort.parquet --username kmohnishm --password HereisMy2006Bye"
+                "!python scripts/download_cohort_physionet.py --cohort data/cohort.parquet --username kmohnishm --password HereisMy2006Bye\n",
+                "\n",
+                "# Immediate backup of downloaded raw files to Google Drive\n",
+                "if os.path.exists('/content/drive/MyDrive'):\n",
+                "    print('\\nBacking up raw downloaded dataset to Google Drive...')\n",
+                "    os.makedirs(f'{DRIVE_DIR}/data', exist_ok=True)\n",
+                "    !cp -r data/* {DRIVE_DIR}/data/ 2>/dev/null || true\n",
+                "    print('Raw dataset backup to Google Drive complete!')"
             ]
         },
         {
@@ -141,7 +148,7 @@ notebook = {
             "metadata": {},
             "outputs": [],
             "source": [
-                "# ── Cell 10: Auto-Backup Outputs to Google Drive ────────────────────────\n",
+                "# ── Cell 10: Auto-Backup Outputs & Models to Google Drive ───────────────\n",
                 "DRIVE_DIR = '/content/drive/MyDrive/HealthCare_Analytics_Backup'\n",
                 "if os.path.exists('/content/drive/MyDrive'):\n",
                 "    print(f'Backing up model weights and evaluation figures to {DRIVE_DIR} ...')\n",
@@ -193,4 +200,4 @@ notebook = {
 with open("colab_master_pipeline.ipynb", "w", encoding="utf-8") as f:
     json.dump(notebook, f, indent=2)
 
-print("Generated colab_master_pipeline.ipynb successfully!")
+print("Generated colab_master_pipeline.ipynb with immediate Drive backup successfully!")
