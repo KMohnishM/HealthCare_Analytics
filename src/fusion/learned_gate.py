@@ -189,6 +189,25 @@ def apply_modality_dropout(
     )
 
 
+class BinaryFocalLoss(nn.Module):
+    """
+    Binary Focal Loss for handling class imbalance in readmission prediction.
+    FL(p_t) = - alpha_t * (1 - p_t)^gamma * log(p_t)
+    """
+    def __init__(self, alpha: float = 0.25, gamma: float = 2.0) -> None:
+        super().__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        bce_loss = nn.functional.binary_cross_entropy_with_logits(logits, targets, reduction="none")
+        probs = torch.sigmoid(logits)
+        p_t = probs * targets + (1 - probs) * (1 - targets)
+        alpha_factor = self.alpha * targets + (1 - self.alpha) * (1 - targets)
+        focal_weight = alpha_factor * ((1 - p_t) ** self.gamma)
+        return (focal_weight * bce_loss).mean()
+
+
 # ── Training loop ─────────────────────────────────────────────────────────────
 
 def train_fusion(
@@ -198,27 +217,6 @@ def train_fusion(
     cfg: DictConfig,
     save_path: Optional[str] = None,
 ) -> Dict[str, list]:
-    """
-    Train the gated fusion model with modality-dropout augmentation.
-
-    The DataLoader is expected to yield batches containing:
-    tab_embed, ecg_embed, cxr_embed, tab_conf, ecg_conf, cxr_conf,
-    availability (B,3), labels (B,).
-
-    Parameters
-    ----------
-    model : GatedFusionModel
-    train_loader : DataLoader
-    val_loader : DataLoader
-    cfg : DictConfig
-    save_path : str, optional
-        Where to save the best checkpoint.
-
-    Returns
-    -------
-    dict
-        Training history: {'train_loss', 'val_loss', 'val_auroc'}.
-    """
     set_seed(cfg.fusion.random_seed)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model.to(device)
@@ -228,7 +226,7 @@ def train_fusion(
         lr=float(cfg.fusion.lr),
         weight_decay=float(cfg.fusion.weight_decay),
     )
-    criterion = nn.BCEWithLogitsLoss()
+    criterion = BinaryFocalLoss(alpha=0.25, gamma=2.0)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(
         optimizer, T_max=cfg.fusion.epochs, eta_min=1e-6
     )

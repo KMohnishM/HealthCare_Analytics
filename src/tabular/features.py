@@ -219,6 +219,52 @@ def extract_admin_features(cohort: pd.DataFrame) -> pd.DataFrame:
 
 # ── Full feature matrix ───────────────────────────────────────────────────────
 
+def augment_engineered_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Augment feature matrix with clinical ratio, stability, and trajectory features:
+      - Shock Index: vital_mean_heart_rate / vital_mean_sbp
+      - Pulse Pressure: vital_max_sbp - vital_min_dbp
+      - BUN/Creatinine ratio: lab_bun / lab_creatinine
+      - Hemoglobin to BUN ratio: lab_hemoglobin / lab_bun
+      - Vital HR instability: vital_max_heart_rate - vital_min_heart_rate
+      - Vital SBP instability: vital_max_sbp - vital_min_sbp
+      - High Risk Composite score: prior_admits_12m + ed_visits_6m
+    """
+    df = df.copy()
+
+    # 1. Shock Index (HR / SBP)
+    if "vital_mean_heart_rate" in df.columns and "vital_mean_sbp" in df.columns:
+        df["shock_index"] = df["vital_mean_heart_rate"] / (df["vital_mean_sbp"] + 1e-5)
+    elif "vital_min_heart_rate" in df.columns and "vital_min_sbp" in df.columns:
+        df["shock_index"] = df["vital_min_heart_rate"] / (df["vital_min_sbp"] + 1e-5)
+
+    # 2. Pulse Pressure (SBP - DBP)
+    if "vital_max_sbp" in df.columns and "vital_min_dbp" in df.columns:
+        df["pulse_pressure"] = df["vital_max_sbp"] - df["vital_min_dbp"]
+
+    # 3. BUN / Creatinine ratio
+    if "lab_bun" in df.columns and "lab_creatinine" in df.columns:
+        df["bun_creatinine_ratio"] = df["lab_bun"] / (df["lab_creatinine"] + 1e-5)
+
+    # 4. Hemoglobin to BUN ratio
+    if "lab_hemoglobin" in df.columns and "lab_bun" in df.columns:
+        df["hemoglobin_to_bun_ratio"] = df["lab_hemoglobin"] / (df["lab_bun"] + 1e-5)
+
+    # 5. Vital HR instability
+    if "vital_max_heart_rate" in df.columns and "vital_min_heart_rate" in df.columns:
+        df["vital_hr_instability"] = df["vital_max_heart_rate"] - df["vital_min_heart_rate"]
+
+    # 6. Vital SBP instability
+    if "vital_max_sbp" in df.columns and "vital_min_sbp" in df.columns:
+        df["vital_sbp_instability"] = df["vital_max_sbp"] - df["vital_min_sbp"]
+
+    # 7. High Risk Composite Utilization
+    if "prior_admits_12m" in df.columns and "ed_visits_6m" in df.columns:
+        df["high_risk_composite"] = (df["prior_admits_12m"] >= 2).astype(int) + (df["ed_visits_6m"] >= 2).astype(int)
+
+    return df
+
+
 def build_feature_matrix(
     cohort: pd.DataFrame,
     cfg: DictConfig,
@@ -227,63 +273,34 @@ def build_feature_matrix(
 ) -> Tuple[pd.DataFrame, pd.Series, List[str]]:
     """
     Assemble the full tabular feature matrix for a cohort split.
-
-    Parameters
-    ----------
-    cohort : pd.DataFrame
-        One of train/val/test cohort DataFrames.
-    cfg : DictConfig
-        Loaded project config.
-    labevents : pd.DataFrame, optional
-        Full labevents table. Loaded from disk if not provided.
-    chartevents : pd.DataFrame, optional
-        Full chartevents table. Loaded from disk if not provided.
-
-    Returns
-    -------
-    X : pd.DataFrame
-        Feature matrix indexed by hadm_id.
-    y : pd.Series
-        Binary readmission labels indexed by hadm_id.
-    feature_names : list of str
-        Ordered list of feature column names.
     """
     mimic_hosp = Path(cfg.paths.mimic_iv_dir) / "hosp"
     mimic_icu  = Path(cfg.paths.mimic_iv_dir) / "icu"
 
     cohort_hadm_ids = set(cohort["hadm_id"].unique())
 
-    # Load tables if not supplied (allows passing pre-loaded for efficiency)
     if labevents is None:
         log.info("Loading and filtering labevents in chunks ...")
         lab_path = mimic_hosp / "labevents.csv.gz"
         if not lab_path.exists():
             lab_path = mimic_hosp / "labevents.csv"
-        
         chunks = []
         for chunk in pd.read_csv(lab_path, chunksize=1000000, low_memory=False):
-            # Keep only the rows for our cohort
-            filtered_chunk = chunk[chunk["hadm_id"].isin(cohort_hadm_ids)]
-            chunks.append(filtered_chunk)
+            chunks.append(chunk[chunk["hadm_id"].isin(cohort_hadm_ids)])
         labevents = pd.concat(chunks, ignore_index=True)
-        log.info("  Loaded %d labevents records", len(labevents))
 
     if chartevents is None:
         log.info("Loading and filtering chartevents in chunks ...")
         ce_path = mimic_icu / "chartevents.csv.gz"
         if not ce_path.exists():
             ce_path = mimic_icu / "chartevents.csv"
-        
         chunks = []
-        # chartevents is very large — read only necessary columns
         for chunk in pd.read_csv(
             ce_path, usecols=["hadm_id", "itemid", "charttime", "valuenum"],
             chunksize=1000000, low_memory=False
         ):
-            filtered_chunk = chunk[chunk["hadm_id"].isin(cohort_hadm_ids)]
-            chunks.append(filtered_chunk)
+            chunks.append(chunk[chunk["hadm_id"].isin(cohort_hadm_ids)])
         chartevents = pd.concat(chunks, ignore_index=True)
-        log.info("  Loaded %d chartevents records", len(chartevents))
 
     lab_itemids   = {k: list(v) for k, v in cfg.tabular.lab_itemids.items()}
     vital_itemids = {k: list(v) for k, v in cfg.tabular.vital_itemids.items()}
@@ -295,7 +312,6 @@ def build_feature_matrix(
     )
     admin_feats  = extract_admin_features(cohort)
 
-    # Align all on hadm_id index
     hadm_ids = cohort["hadm_id"].values
     X = (
         pd.DataFrame(index=hadm_ids)
@@ -305,6 +321,7 @@ def build_feature_matrix(
         .join(vital_feats, how="left")
     )
     X.index.name = "hadm_id"
+    X = augment_engineered_features(X)
 
     y = cohort.set_index("hadm_id")["readmitted_30d"]
 

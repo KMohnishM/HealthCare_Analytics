@@ -65,11 +65,15 @@ def main() -> None:
         X_train = pd.read_parquet(cohort_dir / "X_train.parquet")
         X_val   = pd.read_parquet(cohort_dir / "X_val.parquet")
         X_test  = pd.read_parquet(cohort_dir / "X_test.parquet")
-        
         y_train = pd.read_parquet(cohort_dir / "y_train.parquet").iloc[:, 0].values
         y_val   = pd.read_parquet(cohort_dir / "y_val.parquet").iloc[:, 0].values
         y_test  = pd.read_parquet(cohort_dir / "y_test.parquet").iloc[:, 0].values
+        from src.tabular.features import augment_engineered_features
+        X_train = augment_engineered_features(X_train)
+        X_val   = augment_engineered_features(X_val)
+        X_test  = augment_engineered_features(X_test)
         features = X_train.columns.tolist()
+        log.info("Augmented feature matrix: %d features total", len(features))
     else:
         # ── Load MIMIC tables (loaded once, shared across splits) ─────────────────
         mimic_hosp = Path(cfg.paths.mimic_iv_dir) / "hosp"

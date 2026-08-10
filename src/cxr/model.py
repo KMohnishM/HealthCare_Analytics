@@ -46,14 +46,25 @@ class CXREncoder(nn.Module):
         embed_dim     = cfg.cxr.embed_dim      # 256
         dropout       = cfg.cxr.dropout        # 0.3
 
-        # Load pretrained backbone without classifier
-        self.backbone = timm.create_model(
-            backbone_name,
-            pretrained=cfg.cxr.pretrained,
-            num_classes=0,       # returns raw feature vector
-            global_pool="avg",
-        )
-        feat_dim = self.backbone.num_features  # 1024 for densenet121
+        # Try initializing with torchxrayvision medical weights for DenseNet-121
+        use_xrv = False
+        try:
+            import torchxrayvision as xrv
+            xrv_model = xrv.models.DenseNet(weights="densenet121-res224-all")
+            self.backbone = xrv_model.features
+            feat_dim = 1024
+            use_xrv = True
+        except Exception:
+            pass
+
+        if not use_xrv:
+            self.backbone = timm.create_model(
+                backbone_name,
+                pretrained=cfg.cxr.pretrained,
+                num_classes=0,       # returns raw feature vector
+                global_pool="avg",
+            )
+            feat_dim = self.backbone.num_features  # 1024 for densenet121
 
         # Freeze backbone if configured
         if cfg.cxr.freeze_backbone:

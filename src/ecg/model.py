@@ -74,20 +74,31 @@ class ResBlock1D(nn.Module):
         return self.relu(self.conv_block(x) + self.downsample(x))
 
 
+class LeadAttention1D(nn.Module):
+    """Channel-wise Squeeze-and-Excitation Lead Attention over ECG feature channels."""
+    def __init__(self, channels: int, reduction: int = 4) -> None:
+        super().__init__()
+        red_ch = max(4, channels // reduction)
+        self.fc = nn.Sequential(
+            nn.AdaptiveAvgPool1d(1),
+            nn.Flatten(),
+            nn.Linear(channels, red_ch, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Linear(red_ch, channels, bias=False),
+            nn.Sigmoid(),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        b, c, _ = x.size()
+        w = self.fc(x).view(b, c, 1)
+        return x * w
+
+
 # ── Full model ───────────────────────────────────────────────────────────────
 
 class ECGResNet(nn.Module):
     """
-    1D ResNet for 12-lead ECG binary classification.
-
-    Forward pass returns (logit, embedding):
-    - logit     : (B, 1) raw score (no sigmoid) for BCEWithLogitsLoss
-    - embedding : (B, embed_dim) for use in the fusion layer
-
-    Parameters
-    ----------
-    cfg : DictConfig
-        Project configuration (reads cfg.ecg section).
+    1D ResNet for 12-lead ECG binary classification with spatial lead attention.
     """
 
     def __init__(self, cfg: DictConfig) -> None:
@@ -105,6 +116,7 @@ class ECGResNet(nn.Module):
         self.layer2 = ResBlock1D(64,  128, kernel=7, stride=2)
         self.layer3 = ResBlock1D(128, 256, kernel=5, stride=2)
         self.layer4 = ResBlock1D(256, embed_dim, kernel=5, stride=2)
+        self.attn   = LeadAttention1D(embed_dim)
 
         self.pool    = nn.AdaptiveAvgPool1d(1)
         self.dropout = nn.Dropout(dropout)
@@ -127,6 +139,7 @@ class ECGResNet(nn.Module):
         x = self.layer2(x)
         x = self.layer3(x)
         x = self.layer4(x)
+        x = self.attn(x)
         embed = self.pool(x).squeeze(-1)  # (B, embed_dim)
         embed = self.dropout(embed)
         logit = self.head(embed)          # (B, 1)
