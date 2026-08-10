@@ -9,16 +9,18 @@ notebook = {
                 "# 🫀 Multimodal Heart Failure Readmission Prediction Pipeline\n",
                 "**Master Kaggle Execution Notebook (Robust Dataset & Pip Package Setup)**\n\n",
                 "This notebook executes the entire pipeline sequentially:\n\n",
-                "1. **Install Required Python Packages** (`timm`, `wfdb`, `xgboost`, `shap`, `dcurves`)\n",
+                "1. **Install Required Python Packages** (`timm`, `wfdb`, `xgboost`, `torchxrayvision`, `shap`, `dcurves`)\n",
                 "2. **Setup & Clone Repository**\n",
                 "3. **Copy All Datasets from Kaggle Input** (Parquets, ECGs, CXRs)\n",
                 "4. **Fast Resume Download Check** (Skips automatically if uploaded dataset contains raw files)\n",
-                "5. **Train Tabular Branch** (XGBoost Bootstrap Ensemble)\n",
-                "6. **Train ECG Branch** (1D ResNet-34 with MC-Dropout)\n",
-                "7. **Train CXR Branch** (DenseNet-121 with Transfer Learning)\n",
-                "8. **Train Gated Fusion Layer** (Masked Softmax MLP Gating)\n",
+                "5. **Train Tabular Branch** (XGBoost Ensemble with Trajectories & Ratios)\n",
+                "6. **Train ECG Branch** (1D ResNet-34 with Lead Attention)\n",
+                "7. **Train CXR Branch** (DenseNet-121 with Medical Pretraining)\n",
+                "8. **Train Gated Fusion Layer** (Focal Loss & Gated MLP)\n",
                 "9. **Run Comprehensive Evaluations** (DCA, Baselines, Confusion Matrices, Fairness)\n",
-                "10. **Generate & Display Inline Dashboard**"
+                "10. **Generate Interactive Dashboard Notebook**\n",
+                "11. **Display Inline Visual Dashboard**\n",
+                "12. **Auto-Push ALL Files (`git add .`) to New Versioned Branch on GitHub**"
             ]
         },
         {
@@ -28,7 +30,7 @@ notebook = {
             "outputs": [],
             "source": [
                 "# ── Cell 1: Install Required Python Packages ────────────────────────────\n",
-                "!pip install -q timm wfdb xgboost shap dcurves pyarrow"
+                "!pip install -q timm wfdb xgboost shap dcurves pyarrow torchxrayvision"
             ]
         },
         {
@@ -80,8 +82,7 @@ notebook = {
             "metadata": {},
             "outputs": [],
             "source": [
-                "# ── Cell 5: Train Tabular Branch (XGBoost Ensemble) ───────────────────\n",
-                "# Loads pre-computed X_train.parquet, X_val.parquet, X_test.parquet directly\n",
+                "# ── Cell 5: Train Tabular Branch ───────────────────────────────────────\n",
                 "!python scripts/train_tabular.py"
             ]
         },
@@ -91,7 +92,7 @@ notebook = {
             "metadata": {},
             "outputs": [],
             "source": [
-                "# ── Cell 6: Train ECG Branch (1D ResNet-34) ───────────────────────────\n",
+                "# ── Cell 6: Train ECG Branch ───────────────────────────────────────────\n",
                 "!python scripts/train_ecg.py"
             ]
         },
@@ -101,7 +102,7 @@ notebook = {
             "metadata": {},
             "outputs": [],
             "source": [
-                "# ── Cell 7: Train CXR Branch (DenseNet-121) ───────────────────────────\n",
+                "# ── Cell 7: Train CXR Branch ───────────────────────────────────────────\n",
                 "!python scripts/train_cxr.py"
             ]
         },
@@ -111,7 +112,7 @@ notebook = {
             "metadata": {},
             "outputs": [],
             "source": [
-                "# ── Cell 8: Train Gated Fusion Model (MLP Gating Head) ─────────────────\n",
+                "# ── Cell 8: Train Gated Fusion Layer ───────────────────────────────────\n",
                 "!python scripts/train_fusion.py"
             ]
         },
@@ -160,6 +161,34 @@ notebook = {
                 "    else:\n",
                 "        print(f\"Warning: Figure {filename} not found at {filepath}\")"
             ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {},
+            "outputs": [],
+            "source": [
+                "# ── Cell 12: Auto-Push EVERYTHING (git add .) to a New Versioned Branch ─\n",
+                "import datetime, os\n\n",
+                "# 1. Create a unique versioned branch name with timestamp\n",
+                "version_tag = datetime.datetime.now().strftime('run-v%Y%m%d-%H%M%S')\n",
+                "print(f'Creating and pushing to new version branch: {version_tag}')\n\n",
+                "# 2. Configure Git Identity\n",
+                "!git config user.name 'KMohnishM'\n",
+                "!git config user.email 'kmohnishm@gmail.com'\n\n",
+                "# 3. Create & Checkout New Branch\n",
+                "!git checkout -b {version_tag}\n\n",
+                "# 4. Stage EVERYTHING in working directory\n",
+                "!git add .\n",
+                "!git commit -m f'feat(kaggle-run): full automated output push for version {version_tag}'\n\n",
+                "# 5. Push to GitHub (Set your GitHub PAT Token below or in Kaggle Secrets)\n",
+                "GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN', 'YOUR_GITHUB_TOKEN_HERE')\n\n",
+                "if GITHUB_TOKEN != 'YOUR_GITHUB_TOKEN_HERE':\n",
+                "    !git push https://{GITHUB_TOKEN}@github.com/KMohnishM/HealthCare_Analytics.git {version_tag}\n",
+                "    print(f'\\n🎉 Successfully pushed branch \"{version_tag}\" with all files to GitHub!')\n",
+                "else:\n",
+                "    print('\\n⚠️ Please replace YOUR_GITHUB_TOKEN_HERE with your actual GitHub PAT token to enable auto-push!')"
+            ]
         }
     ],
     "metadata": {
@@ -172,4 +201,4 @@ notebook = {
 with open("master_kaggle_pipeline.ipynb", "w", encoding="utf-8") as f:
     json.dump(notebook, f, indent=2)
 
-print("Successfully created master_kaggle_pipeline.ipynb with pip install & dataset mounting!")
+print("Successfully created master_kaggle_pipeline.ipynb with version branch auto-push!")
