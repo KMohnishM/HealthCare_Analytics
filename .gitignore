@@ -3,10 +3,12 @@ __pycache__/
 *.pyc
 *$py.class
 
-# Local data & processed output folders
-data/
-outputs/
-data_processed_dummy/
+# Ignore raw data files & zips only (preventing >100MB raw files)
+data/raw/
+raw_dataset.zip
+*.zip
+*.tar.gz
+*.dat
 
 # Environments
 .venv/
