@@ -71,9 +71,15 @@ notebook = {
             "metadata": {},
             "outputs": [],
             "source": [
-                "# ── Cell 4: Fast Resume Download Check ─────────────────────────────────\n",
+                "# ── Cell 4: Fast Resume Download Check & Zipping ───────────────────────\n",
                 "# If raw files are already mounted from your uploaded Kaggle Dataset, this skips in 1 second!\n",
-                "!python scripts/download_cohort_physionet.py --cohort data/cohort.parquet --username kmohnishm --password HereisMy2006Bye"
+                "!python scripts/download_cohort_physionet.py --cohort data/cohort.parquet --username kmohnishm --password HereisMy2006Bye\n\n",
+                "# Compress raw dataset into raw_dataset.zip for 1-click download\n",
+                "import os\n",
+                "if os.path.exists('data/raw') and len(os.listdir('data/raw')) > 0:\n",
+                "    print('\\nCompressing data/raw into raw_dataset.zip for 1-click download from Kaggle Output...')\n",
+                "    !zip -q -r raw_dataset.zip data/raw\n",
+                "    print('raw_dataset.zip created successfully! Available in Kaggle Output pane.')"
             ]
         },
         {
