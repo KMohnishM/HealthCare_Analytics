@@ -66,6 +66,8 @@ class CXREncoder(nn.Module):
             )
             feat_dim = self.backbone.num_features  # 1024 for densenet121
 
+        self.use_xrv = use_xrv
+
         # Freeze backbone if configured
         if cfg.cxr.freeze_backbone:
             for param in self.backbone.parameters():
@@ -87,14 +89,20 @@ class CXREncoder(nn.Module):
         """
         Parameters
         ----------
-        x : torch.Tensor, shape (B, 3, 224, 224)
+        x : torch.Tensor, shape (B, 3, 224, 224) or (B, 1, 224, 224)
 
         Returns
         -------
         logit : (B, 1)
         embed : (B, embed_dim)
         """
-        feat  = self.backbone(x)   # (B, 1024)
+        if self.use_xrv and x.shape[1] == 3:
+            x = x.mean(dim=1, keepdim=True)
+
+        feat = self.backbone(x)     # (B, 1024, 7, 7) or (B, 1024)
+        if feat.dim() == 4:
+            feat = feat.mean(dim=[-2, -1])  # Global average pool to (B, 1024)
+
         embed = self.proj(feat)    # (B, 256)
         logit = self.head(embed)   # (B, 1)
         return logit, embed
