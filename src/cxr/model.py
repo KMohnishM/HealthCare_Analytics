@@ -96,8 +96,12 @@ class CXREncoder(nn.Module):
         logit : (B, 1)
         embed : (B, embed_dim)
         """
-        if self.use_xrv and x.shape[1] == 3:
-            x = x.mean(dim=1, keepdim=True)
+        if self.use_xrv:
+            import torchxrayvision as xrv
+            if x.shape[1] == 3:
+                x = x.mean(dim=1, keepdim=True)
+            # Rescale to [-1024, 1024] expected by TorchXRayVision
+            x = xrv.datasets.normalize(x, maxval=1.0)
 
         feat = self.backbone(x)     # (B, 1024, 7, 7) or (B, 1024)
         if feat.dim() == 4:

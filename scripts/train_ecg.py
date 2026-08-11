@@ -204,6 +204,8 @@ def main() -> None:
 
     best_val_auc = 0.0
     best_state   = None
+    patience = 8
+    patience_counter = 0
 
     for epoch in range(1, cfg.ecg.epochs + 1):
         train_loss             = train_one_epoch(model, train_loader, optimizer, criterion, device)
@@ -216,9 +218,15 @@ def main() -> None:
                 epoch, cfg.ecg.epochs, train_loss, val_loss, val_auc,
             )
 
-        if val_auc > best_val_auc:
+        if val_auc > best_val_auc + 1e-4:
             best_val_auc = val_auc
             best_state   = {k: v.cpu() for k, v in model.state_dict().items()}
+            patience_counter = 0
+        else:
+            patience_counter += 1
+            if patience_counter >= patience:
+                log.info("Early stopping triggered at epoch %d (best val AUROC: %.4f)", epoch, best_val_auc)
+                break
 
     if best_state is None:
         best_state = {k: v.cpu() for k, v in model.state_dict().items()}
