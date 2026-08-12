@@ -98,8 +98,14 @@ class CXREncoder(nn.Module):
         """
         if self.use_xrv:
             import torchxrayvision as xrv
+            # Un-normalize ImageNet values back to [0, 1] range
             if x.shape[1] == 3:
+                mean = torch.tensor([0.485, 0.456, 0.406], device=x.device).view(1, 3, 1, 1)
+                std  = torch.tensor([0.229, 0.224, 0.225], device=x.device).view(1, 3, 1, 1)
+                x = torch.clamp((x * std) + mean, 0.0, 1.0)
                 x = x.mean(dim=1, keepdim=True)
+            else:
+                x = torch.clamp((x * 0.229) + 0.485, 0.0, 1.0)
             # Rescale to [-1024, 1024] expected by TorchXRayVision
             x = xrv.datasets.normalize(x, maxval=1.0)
 
