@@ -85,17 +85,34 @@ def extract_lab_features(
         & (labs["charttime"] <= labs["dischtime"])
     ]
 
-    # For each hadm_id × lab_name take the value closest to discharge
-    labs["time_to_discharge"] = (labs["dischtime"] - labs["charttime"]).dt.total_seconds()
-    labs = labs.sort_values("time_to_discharge")
-    last_labs = (
+    # For each hadm_id × lab_name take earliest (admission) and latest (discharge) values
+    labs = labs.sort_values("charttime")
+    
+    first_labs = (
         labs.groupby(["hadm_id", "lab_name"])["valuenum"]
         .first()
         .unstack(fill_value=np.nan)
     )
-    last_labs.columns = [f"lab_{c}" for c in last_labs.columns]
-    log.info("  Lab feature matrix: %d rows × %d cols", *last_labs.shape)
-    return last_labs
+    last_labs = (
+        labs.groupby(["hadm_id", "lab_name"])["valuenum"]
+        .last()
+        .unstack(fill_value=np.nan)
+    )
+
+    last_labs_df = last_labs.copy()
+    last_labs_df.columns = [f"lab_{c}" for c in last_labs_df.columns]
+
+    # Trajectory delta: discharge value minus admission baseline value
+    delta_labs_df = last_labs - first_labs
+    delta_labs_df.columns = [f"lab_delta_{c}" for c in delta_labs_df.columns]
+
+    # Trajectory ratio: discharge value divided by admission baseline value
+    ratio_labs_df = last_labs / (first_labs + 1e-5)
+    ratio_labs_df.columns = [f"lab_ratio_{c}" for c in ratio_labs_df.columns]
+
+    res_labs = pd.concat([last_labs_df, delta_labs_df, ratio_labs_df], axis=1)
+    log.info("  Lab feature matrix: %d rows × %d cols (including deltas & ratios)", *res_labs.shape)
+    return res_labs
 
 
 def extract_vital_features(
