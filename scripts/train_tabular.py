@@ -27,7 +27,7 @@ import pandas as pd
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import KFold
 
-from src.tabular.features import build_feature_matrix
+from src.tabular.features import build_feature_matrix, extract_lab_features, extract_demographic_features, augment_engineered_features
 from src.tabular.impute import fit_imputer, apply_imputer, save_imputer, missingness_report
 from src.tabular.model import TabularEnsemble
 from src.evaluation.metrics import evaluate_all
@@ -68,12 +68,84 @@ def main() -> None:
         y_train = pd.read_parquet(cohort_dir / "y_train.parquet").iloc[:, 0].values
         y_val   = pd.read_parquet(cohort_dir / "y_val.parquet").iloc[:, 0].values
         y_test  = pd.read_parquet(cohort_dir / "y_test.parquet").iloc[:, 0].values
-        from src.tabular.features import augment_engineered_features
+
+        # ── Fix 1: Re-derive race from cohort splits (parquet stores race as all-NaN) ──
+        for split_name, X_split, cohort_split in [
+            ("train", X_train, train_df),
+            ("val",   X_val,   val_df),
+            ("test",  X_test,  test_df),
+        ]:
+            demo = extract_demographic_features(cohort_split)
+            race_cols = [c for c in demo.columns if c.startswith("race_")]
+            if race_cols:
+                # X_split may have RangeIndex; use hadm_id from cohort to align
+                hadm_ids = cohort_split["hadm_id"].values
+                X_split.index = hadm_ids
+                X_split.index.name = "hadm_id"
+                X_split.drop(columns=[c for c in race_cols if c in X_split.columns], inplace=True, errors="ignore")
+                X_split[race_cols] = demo[race_cols].reindex(X_split.index)
+            log.info("Race re-derived for %s split (%d race cols, %d non-null)",
+                     split_name, len(race_cols),
+                     int(X_split[race_cols[0]].notna().sum()) if race_cols else 0)
+
+        # ── Fix 2: Compute lab delta features if labevents is available ─────────────
+        # Search common paths: local MIMIC-IV, Kaggle input, Colab Drive
+        lab_search_paths = [
+            Path(cfg.paths.mimic_iv_dir) / "hosp" / "labevents.csv.gz",
+            Path(cfg.paths.mimic_iv_dir) / "hosp" / "labevents.csv",
+            Path("/kaggle/input/mimic-iv/hosp/labevents.csv.gz"),
+            Path("/kaggle/input/mimic-iv-clinical-database/hosp/labevents.csv.gz"),
+            Path("/content/drive/MyDrive/mimic-iv/hosp/labevents.csv.gz"),
+        ]
+        lab_path_found = next((p for p in lab_search_paths if p.exists()), None)
+
+        DELTA_SENTINEL = "lab_delta_hemoglobin"  # check if deltas already present
+        if lab_path_found and DELTA_SENTINEL not in X_train.columns:
+            log.info("Found labevents at %s — computing lab trajectory delta features ...", lab_path_found)
+            try:
+                lab_itemids = {k: list(v) for k, v in cfg.tabular.lab_itemids.items()}
+                all_hadm = set(train_df["hadm_id"]) | set(val_df["hadm_id"]) | set(test_df["hadm_id"])
+                chunks = []
+                for chunk in pd.read_csv(lab_path_found, chunksize=1_000_000, low_memory=False):
+                    mask = chunk["hadm_id"].isin(all_hadm)
+                    if mask.any():
+                        chunks.append(chunk[mask])
+                labevents_filtered = pd.concat(chunks, ignore_index=True)
+
+                for split_name, X_split, cohort_split in [
+                    ("train", X_train, train_df),
+                    ("val",   X_val,   val_df),
+                    ("test",  X_test,  test_df),
+                ]:
+                    lab_feats = extract_lab_features(cohort_split, labevents_filtered, lab_itemids)
+                    delta_cols = [c for c in lab_feats.columns if "delta" in c or "ratio" in c]
+                    if delta_cols:
+                        X_split[delta_cols] = lab_feats[delta_cols].reindex(X_split.index)
+                log.info("Lab trajectory delta features added: %d new columns", len(delta_cols))
+            except Exception as exc:
+                log.warning("Lab delta extraction failed (%s) — proceeding without delta features.", exc)
+        elif DELTA_SENTINEL in X_train.columns:
+            log.info("Lab delta features already present in cached parquets — skipping extraction.")
+        else:
+            log.warning(
+                "labevents not found in any standard path — lab delta features unavailable. "
+                "Add MIMIC-IV hosp data to Kaggle input to enable delta features."
+            )
+
         X_train = augment_engineered_features(X_train)
         X_val   = augment_engineered_features(X_val)
         X_test  = augment_engineered_features(X_test)
+
+        # Drop any feature columns that are entirely NaN (dead features)
+        dead_cols = [c for c in X_train.columns if X_train[c].isna().all()]
+        if dead_cols:
+            log.warning("Dropping %d all-NaN feature columns: %s", len(dead_cols), dead_cols)
+            X_train.drop(columns=dead_cols, inplace=True)
+            X_val.drop(columns=dead_cols, inplace=True, errors="ignore")
+            X_test.drop(columns=dead_cols, inplace=True, errors="ignore")
+
         features = X_train.columns.tolist()
-        log.info("Augmented feature matrix: %d features total", len(features))
+        log.info("Final feature matrix: %d features total", len(features))
     else:
         # ── Load MIMIC tables (loaded once, shared across splits) ─────────────────
         mimic_hosp = Path(cfg.paths.mimic_iv_dir) / "hosp"

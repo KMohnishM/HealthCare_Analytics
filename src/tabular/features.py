@@ -204,9 +204,12 @@ def extract_demographic_features(cohort: pd.DataFrame) -> pd.DataFrame:
             "ASIAN"    if "ASIAN" in r else
             "OTHER"
         ))
-        categories = ["WHITE", "BLACK", "HISPANIC", "ASIAN", "OTHER"]
-        simplified = pd.Categorical(simplified, categories=categories)
+        # get_dummies directly on string Series (avoids pd.Categorical NaN bug)
         race_dummies = pd.get_dummies(simplified, prefix="race", dtype=int)
+        # Ensure all 5 canonical categories always exist even if absent in this split
+        for cat in ["race_WHITE", "race_BLACK", "race_HISPANIC", "race_ASIAN", "race_OTHER"]:
+            if cat not in race_dummies.columns:
+                race_dummies[cat] = 0
         demo = demo.join(race_dummies)
 
     return demo
