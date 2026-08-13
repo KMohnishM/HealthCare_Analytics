@@ -70,8 +70,9 @@ class CXRDataset(Dataset):
 
         path = self.path_map.get(hadm_id)
         if path is not None:
+            use_xrv = getattr(self.cfg.cxr, "use_xrv", False)
             img = load_and_preprocess_cxr(
-                path, is_train=self.is_train, image_size=self.image_size
+                path, is_train=self.is_train, image_size=self.image_size, use_xrv=use_xrv
             )
         else:
             img = None

@@ -144,6 +144,15 @@ def main() -> None:
             X_val.drop(columns=dead_cols, inplace=True, errors="ignore")
             X_test.drop(columns=dead_cols, inplace=True, errors="ignore")
 
+        # Save patched parquets back to disk so git tracks the correct, non-NaN features
+        X_train.to_parquet(cohort_dir / "X_train.parquet")
+        X_val.to_parquet(cohort_dir / "X_val.parquet")
+        X_test.to_parquet(cohort_dir / "X_test.parquet")
+        pd.DataFrame(y_train, columns=["readmitted_30d"]).to_parquet(cohort_dir / "y_train.parquet")
+        pd.DataFrame(y_val, columns=["readmitted_30d"]).to_parquet(cohort_dir / "y_val.parquet")
+        pd.DataFrame(y_test, columns=["readmitted_30d"]).to_parquet(cohort_dir / "y_test.parquet")
+        log.info("Saved patched feature parquets on disk.")
+
         features = X_train.columns.tolist()
         log.info("Final feature matrix: %d features total", len(features))
     else:

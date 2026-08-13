@@ -35,7 +35,7 @@ _IMAGENET_MEAN = [0.485, 0.456, 0.406]
 _IMAGENET_STD  = [0.229, 0.224, 0.225]
 
 
-def get_transform(is_train: bool, image_size: int = 224) -> transforms.Compose:
+def get_transform(is_train: bool, image_size: int = 224, use_xrv: bool = False) -> transforms.Compose:
     """
     Return the appropriate torchvision transform pipeline.
 
@@ -45,27 +45,33 @@ def get_transform(is_train: bool, image_size: int = 224) -> transforms.Compose:
         If True, includes data augmentation (flip, jitter, random crop).
     image_size : int
         Target image size (square).
+    use_xrv : bool
+        If True, skips ImageNet normalization (TorchXRayVision expects raw/non-ImageNet input).
 
     Returns
     -------
     transforms.Compose
     """
     if is_train:
-        return transforms.Compose([
+        t_list = [
             transforms.Resize(256),
             transforms.RandomCrop(image_size),
             transforms.RandomHorizontalFlip(),
             transforms.ColorJitter(brightness=0.15, contrast=0.15),
             transforms.ToTensor(),
-            transforms.Normalize(_IMAGENET_MEAN, _IMAGENET_STD),
-        ])
+        ]
+        if not use_xrv:
+            t_list.append(transforms.Normalize(_IMAGENET_MEAN, _IMAGENET_STD))
+        return transforms.Compose(t_list)
     else:
-        return transforms.Compose([
+        t_list = [
             transforms.Resize(image_size),
             transforms.CenterCrop(image_size),
             transforms.ToTensor(),
-            transforms.Normalize(_IMAGENET_MEAN, _IMAGENET_STD),
-        ])
+        ]
+        if not use_xrv:
+            t_list.append(transforms.Normalize(_IMAGENET_MEAN, _IMAGENET_STD))
+        return transforms.Compose(t_list)
 
 
 # ── CXR index: map admissions to nearest frontal CXR ─────────────────────────
@@ -172,6 +178,7 @@ def load_and_preprocess_cxr(
     image_path: str,
     is_train: bool = False,
     image_size: int = 224,
+    use_xrv: bool = False,
 ) -> Optional[torch.Tensor]:
     """
     Load a JPEG CXR image and apply the preprocessing transform.
@@ -184,6 +191,8 @@ def load_and_preprocess_cxr(
         If True, applies augmentation transforms.
     image_size : int
         Target image size.
+    use_xrv : bool
+        If True, skips ImageNet normalization.
 
     Returns
     -------
@@ -192,7 +201,7 @@ def load_and_preprocess_cxr(
     try:
         from PIL import Image
         img = Image.open(image_path).convert("RGB")
-        transform = get_transform(is_train=is_train, image_size=image_size)
+        transform = get_transform(is_train=is_train, image_size=image_size, use_xrv=use_xrv)
         return transform(img)
     except Exception as e:
         log.warning("Failed to load CXR %s: %s", image_path, e)
