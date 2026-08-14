@@ -138,6 +138,7 @@ evaluation:
   fairness_groups:
     - "gender"
     - "age_group"    # <65, 65-79, >=80
+    - "race"
 
 # ── MLflow ────────────────────────────────────────────────────
 mlflow:

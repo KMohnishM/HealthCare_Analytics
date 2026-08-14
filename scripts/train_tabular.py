@@ -107,10 +107,16 @@ def main() -> None:
                 all_hadm = set(train_df["hadm_id"]) | set(val_df["hadm_id"]) | set(test_df["hadm_id"])
                 chunks = []
                 for chunk in pd.read_csv(lab_path_found, chunksize=1_000_000, low_memory=False):
-                    mask = chunk["hadm_id"].isin(all_hadm)
+                    chunk_clean = chunk.dropna(subset=["hadm_id"]).copy()
+                    # Convert to float first, then int, to handle float/string representations cleanly
+                    chunk_clean["hadm_id"] = chunk_clean["hadm_id"].astype(float).astype(int)
+                    mask = chunk_clean["hadm_id"].isin(all_hadm)
                     if mask.any():
-                        chunks.append(chunk[mask])
-                labevents_filtered = pd.concat(chunks, ignore_index=True)
+                        chunks.append(chunk_clean[mask])
+                if chunks:
+                    labevents_filtered = pd.concat(chunks, ignore_index=True)
+                else:
+                    raise ValueError("No matching cohort admissions found in labevents file.")
 
                 for split_name, X_split, cohort_split in [
                     ("train", X_train, train_df),
