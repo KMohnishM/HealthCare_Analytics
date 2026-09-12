@@ -106,8 +106,8 @@ class CXREncoder(nn.Module):
                 x = x.mean(dim=1, keepdim=True)
             else:
                 x = torch.clamp((x * 0.229) + 0.485, 0.0, 1.0)
-            # Rescale to [-1024, 1024] expected by TorchXRayVision
-            x = xrv.datasets.normalize(x, maxval=1.0)
+            # Rescale [0, 1] tensor to [-1024, 1024] expected by TorchXRayVision
+            x = (2.0 * x - 1.0) * 1024.0
 
         feat = self.backbone(x)     # (B, 1024, 7, 7) or (B, 1024)
         if feat.dim() == 4:

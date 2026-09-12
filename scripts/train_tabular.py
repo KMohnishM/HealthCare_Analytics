@@ -95,9 +95,15 @@ def main() -> None:
             Path(cfg.paths.mimic_iv_dir) / "hosp" / "labevents.csv",
             Path("/kaggle/input/mimic-iv/hosp/labevents.csv.gz"),
             Path("/kaggle/input/mimic-iv-clinical-database/hosp/labevents.csv.gz"),
+            Path("/kaggle/input/mimic-iv-clinical-database-2.2/hosp/labevents.csv.gz"),
             Path("/content/drive/MyDrive/mimic-iv/hosp/labevents.csv.gz"),
         ]
         lab_path_found = next((p for p in lab_search_paths if p.exists()), None)
+        if not lab_path_found and Path("/kaggle/input").exists():
+            import glob
+            matches = glob.glob("/kaggle/input/**/labevents.csv*", recursive=True)
+            if matches:
+                lab_path_found = Path(matches[0])
 
         DELTA_SENTINEL = "lab_delta_hemoglobin"  # check if deltas already present
         if lab_path_found and DELTA_SENTINEL not in X_train.columns:

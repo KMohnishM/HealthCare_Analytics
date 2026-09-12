@@ -73,20 +73,36 @@ def fairness_report(
         "AUROC_gap":   0.0,
     })
 
+    cohort_eval = cohort_test.copy()
+    if "race" in cohort_eval.columns:
+        def _std_race(v):
+            s = str(v).upper()
+            if "WHITE" in s or "PORTUGUESE" in s:
+                return "WHITE"
+            elif "BLACK" in s or "AFRICAN" in s or "CAPE VERDEAN" in s or "CARIBBEAN" in s:
+                return "BLACK"
+            elif "HISPANIC" in s or "LATINO" in s or "PUERTO" in s or "CUBAN" in s or "DOMINICAN" in s or "MEXICAN" in s:
+                return "HISPANIC"
+            elif "ASIAN" in s:
+                return "ASIAN"
+            else:
+                return "OTHER"
+        cohort_eval["race"] = cohort_eval["race"].apply(_std_race)
+
     for group_col in groups:
-        if group_col not in cohort_test.columns:
+        if group_col not in cohort_eval.columns:
             log.warning("Column '%s' not found in cohort — skipping.", group_col)
             continue
 
-        for grp_val, grp_df in cohort_test.groupby(group_col):
+        for grp_val, grp_df in cohort_eval.groupby(group_col):
             idx = grp_df.index
-            y_t = y_true[cohort_test.index.get_indexer(idx)] if cohort_test.index.name else \
+            y_t = y_true[cohort_eval.index.get_indexer(idx)] if cohort_eval.index.name else \
                   y_true[grp_df.index.values]
             y_p = y_prob[grp_df.index.values] if isinstance(y_prob, np.ndarray) else \
                   y_prob
 
             # Re-index properly
-            mask = cohort_test[group_col] == grp_val
+            mask = cohort_eval[group_col] == grp_val
             y_t = y_true[mask.values]
             y_p = y_prob[mask.values]
 
