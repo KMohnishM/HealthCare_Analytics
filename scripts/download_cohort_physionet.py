@@ -226,18 +226,57 @@ def main():
         print(f"\n[WARNING] Could not access Chest X-Ray files: {e}")
         print("Continuing with Tabular and ECG files only...")
 
+    import shutil
+
     # Download Queue
     all_tasks = ecg_tasks + cxr_tasks
     
-    # Filter out tasks that are already downloaded
+    # Filter out tasks that are already downloaded or available in Kaggle input
     pending_tasks = []
+    raw_root = Path(args.out_dir) / "raw"
+    kaggle_root = Path("/kaggle/input")
+    kaggle_available = kaggle_root.exists()
+
     for url, dest in all_tasks:
-        if not dest.exists():
+        if dest.exists():
+            continue
+            
+        # Check if file is available in /kaggle/input
+        kaggle_found = False
+        if kaggle_available:
+            try:
+                rel_sub_path = dest.relative_to(raw_root)
+                possible_paths = [
+                    kaggle_root / rel_sub_path,
+                    kaggle_root / rel_sub_path.name,
+                ]
+                if "mimic-iv-ecg-1.0" in rel_sub_path.parts:
+                    ecg_rel = Path(*rel_sub_path.parts[rel_sub_path.parts.index("mimic-iv-ecg-1.0")+1:])
+                    possible_paths.append(kaggle_root / "mimic-iv-ecg-1.0" / ecg_rel)
+                    possible_paths.append(kaggle_root / "mimic-iv-ecg" / ecg_rel)
+                if "mimic-cxr-jpg-2.1.0" in rel_sub_path.parts:
+                    cxr_rel = Path(*rel_sub_path.parts[rel_sub_path.parts.index("mimic-cxr-jpg-2.1.0")+1:])
+                    possible_paths.append(kaggle_root / "mimic-cxr-jpg-2.1.0" / cxr_rel)
+                    possible_paths.append(kaggle_root / "mimic-cxr-jpg" / cxr_rel)
+                    
+                for p in possible_paths:
+                    if p.exists():
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        try:
+                            os.symlink(p, dest)
+                        except Exception:
+                            shutil.copy(p, dest)
+                        kaggle_found = True
+                        break
+            except Exception:
+                pass
+                
+        if not kaggle_found and not dest.exists():
             pending_tasks.append((url, dest))
             
     print(f"\nTotal expected files: {len(all_tasks)}")
-    print(f"Already downloaded on disk: {len(all_tasks) - len(pending_tasks)}")
-    print(f"Pending download: {len(pending_tasks)}")
+    print(f"Already available on disk/Kaggle: {len(all_tasks) - len(pending_tasks)}")
+    print(f"Pending HTTP download: {len(pending_tasks)}")
     
     if args.limit_downloads is not None and len(pending_tasks) > args.limit_downloads:
         print(f"Limiting this run to download the first {args.limit_downloads} pending files...")
